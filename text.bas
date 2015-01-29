@@ -1,22 +1,25 @@
-'mouse type
+DECLARE SUB mouse.load ()
+DECLARE SUB mouse.start2 ()
+
+'dos mouse type
 TYPE DosMouse
-left AS INTEGER
-right AS INTEGER
-oldleft AS INTEGER
-oldright AS INTEGER
-xpos AS LONG
-ypos AS LONG
-oldxpos AS LONG
-oldypos AS LONG
-MouseType AS INTEGER
-mouseattrib AS INTEGER
-oldmousetype AS INTEGER
-oldmouseattrib AS INTEGER
-virtualattrib AS INTEGER
+x AS LONG
+y AS LONG
+lb AS INTEGER
+rb AS INTEGER
+oldX AS LONG
+oldY AS LONG
+oldLb AS INTEGER
+oldRb AS INTEGER
+mode AS INTEGER
+attr AS INTEGER
+oldMype AS INTEGER
+oldAttr AS INTEGER
+virtAttr AS INTEGER
 END TYPE
 
+'function declarations
 DECLARE SUB mouse.load ()
-DECLARE FUNCTION mouse.init% ()
 DECLARE SUB mouse.show ()
 DECLARE SUB mouse.start2 ()
 DECLARE SUB mouse.show2 ()
@@ -30,6 +33,7 @@ DECLARE SUB mouse.setrange (x1%, y1%, x2%, y2%)
 DECLARE SUB mouse.put (x&, y&)
 DECLARE SUB mouse.status ()
 DECLARE SUB mouse.relativestatus ()
+DECLARE SUB mouse.start2 ()
 
 DECLARE FUNCTION dat.datum% (fl1$, pos1&)
 DECLARE SUB dat.loaddata (fl1$, pos1&, pos2&, segment&)
@@ -44,8 +48,8 @@ DECLARE SUB savedat (fl1$)
 
 
 ON ERROR GOTO errors
-DIM Jerry AS Mouse
-Mouse$ = ""
+DIM Jerry AS mouse
+mouse$ = ""
 Jerry.MouseType = 1
 Jerry.mouseattrib = 1
 Jerry.virtualattrib = 0
@@ -308,7 +312,7 @@ DEF SEG
 END SUB
 
 SUB mouse.end2
-SHARED Jerry AS Mouse
+SHARED Jerry AS mouse
 mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
 DEF SEG = &HB800
 POKE mem1&, PEEK(5000)
@@ -385,10 +389,10 @@ DEF SEG
 END SUB
 
 SUB mouse.relativestatus
-SHARED Jerry AS Mouse
-SHARED Mouse$
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 117
+SHARED Jerry AS mouse
+SHARED mouse$
+DEF SEG = VARSEG(mouse$)
+mem1& = SADD(mouse$) + 117
 CALL absolute(mem1&)
 DEF SEG = &H100
 a1% = PEEK(0)
@@ -407,7 +411,7 @@ DEF SEG
 END SUB
 
 SUB mouse.setrange (x1%, y1%, x2%, y2%)
-SHARED Mouse$
+SHARED mouse$
 DEF SEG = &H101
 POKE 1, 0'x1% MOD 256
 POKE 0, 0' x1% \ 256
@@ -417,22 +421,24 @@ POKE 5, 0'y1% MOD 256
 POKE 4, 0'y1% \ 256
 POKE 7, 100'y2% MOD 256
 POKE 6, 0'y2% \ 256
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 28
+DEF SEG = VARSEG(mouse$)
+mem1& = SADD(mouse$) + 28
 CALL absolute(mem1&)
 DEF SEG
 END SUB
 
 SUB mouse.show
-SHARED Mouse$
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 16
-CALL absolute(mem1&)
+SHARED Err$, MouseMod$
+
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 16
+CALL absolute(func&)
 DEF SEG
+
 END SUB
 
 SUB mouse.show2
-SHARED Jerry AS Mouse, k$
+SHARED Jerry AS mouse, k$
 mouse.status
 IF (Jerry.virtualattrib > 0) THEN
 IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
@@ -472,7 +478,7 @@ END IF
 END SUB
 
 SUB mouse.show3
-SHARED Jerry AS Mouse
+SHARED Jerry AS mouse
 mouse.status
 IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
 DEF SEG = &HB800
@@ -491,7 +497,7 @@ END IF
 END SUB
 
 SUB mouse.start2
-SHARED Jerry AS Mouse
+SHARED Jerry AS mouse
 mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
 DEF SEG = &HB800
 POKE 5000, PEEK(mem1&)
@@ -500,7 +506,7 @@ DEF SEG
 END SUB
 
 SUB mouse.start3
-SHARED Jerry AS Mouse
+SHARED Jerry AS mouse
 DEF SEG = &HB800
 mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
 Jerry.MouseType = PEEK(mem1&)
@@ -509,17 +515,17 @@ DEF SEG
 END SUB
 
 SUB mouse.status
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED Err$, MouseMod$, mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 89
 CALL absolute(func&)
 
 DEF SEG = &H100
-Mouse.lb = PEEK(0) AND 1
-Mouse.rb = (PEEK(0) \ 2) AND 1
-Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
-Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
+mouse.lb = PEEK(0) AND 1
+mouse.rb = (PEEK(0) \ 2) AND 1
+mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
 END SUB
