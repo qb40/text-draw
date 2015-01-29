@@ -19,6 +19,10 @@ DECLARE SUB mouse.relativestatus ()
 
 DECLARE FUNCTION dat.datum% (fl1$, pos1&)
 DECLARE SUB dat.loaddata (fl1$, pos1&, pos2&, segment&)
+DECLARE SUB dat.loadpic (fl1$)
+DECLARE SUB makecopy ()
+DECLARE SUB savedat (fl1$)
+
 
 ON ERROR GOTO errors
 TYPE mouse
@@ -70,11 +74,18 @@ NEXT
 CLOSE #1
 DEF SEG
 
+k$ = INPUT$(1)
+OPEN "B", #1, "Save.dat"
+IF (LOF(1) <> 0) THEN
+dat.loadpic "save.dat"
+saveused% = 1
+END IF
+CLOSE #1
+
+
 mouse.start2
-attr1% = 1
-attr2% = 0
-attr3% = 0
-char% = 1
+Jerry.mousetype = 1
+Jerry.mouseattrib = 1
 DO
         k$ = ""
         WHILE k$ = ""
@@ -82,50 +93,72 @@ DO
         k$ = INKEY$
         IF (k$ = CHR$(27)) THEN EXIT DO
         attr% = attr2% * 128 + attr3% * 16 + attr1%
-        IF (Jerry.left = 1) THEN mouse.writeat2 Jerry.mousetype, attr%
+        IF (Jerry.left = 1) THEN mouse.writeat2 Jerry.mousetype, Jerry.mouseattrib
         IF (Jerry.right = 1) THEN mouse.writeat2 0, 0
         IF (Jerry.left = 1 AND Jerry.right = 1) THEN CLS
         WEND
        
 SELECT CASE k$
+'Change main colour + (Ctrl+Z)
 CASE CHR$(26)
-attr1% = attr1% + 1
-IF attr1% > 15 THEN attr1% = 0
-attr% = attr2% * 128 + attr3% * 16 + attr1%
-Jerry.mouseattrib = attr%
+a1% = Jerry.mouseattrib AND &HF
+a1% = a1% + 1
+IF a1% > 15 THEN a1% = 0
+Jerry.mouseattrib = (Jerry.mouseattrib AND &HF0) OR a1%
+'Change main colour - (Ctrl+X)
 CASE CHR$(24)
-attr1% = attr1% - 1
-IF (attr1% < 0) THEN attr1% = 15
-attr% = attr2% * 128 + attr3% * 16 + attr1%
-Jerry.mouseattrib = attr%
+a1% = Jerry.mouseattrib AND &HF
+a1% = a1% - 1
+IF (a1% < 0) THEN a1% = 15
+Jerry.mouseattrib = (Jerry.mouseattrib AND &HF0) OR a1%
+'Change blink colour + (Ctrl+C)
 CASE CHR$(3)
-attr2% = attr2% + 1
-IF (attr2% > 1) THEN attr2% = 0
-attr% = attr2% * 128 + attr3% * 16 + attr1%
-Jerry.mouseattrib = attr%
+a1% = Jerry.mouseattrib AND &H80
+a1% = a1% + 1
+IF (a1% > 128) THEN a1% = 0
+Jerry.mouseattrib = (Jerry.mouseattrib AND &H7F) OR a1%
+'Change back colour +  (Ctrl+V)
 CASE CHR$(22)
-attr3% = attr3% + 1
-IF (attr3% > 7) THEN attr3% = 0
-attr% = attr3% * 128 + attr3% * 16 + attr1%
-Jerry.mouseattrib = attr%
+a1% = (Jerry.mouseattrib AND &H70) \ 16
+a1% = a1% + 1
+IF (a1% > 7) THEN a1% = 0
+Jerry.mouseattrib = (Jerry.mouseattrib AND &H8F) OR (a1% * 16)
+'Change back colour -  (Ctrl+B)
 CASE CHR$(2)
-attr3% = attr3% - 1
-IF (sttr3% < 0) THEN attr3% = 7
-attr% = attr2% * 128 + attr3% * 16 + attr1%
-Jerry.mouseattrib = attr%
+a1% = (Jerry.mouseattrib AND &H70) \ 16
+a1% = a1% - 1
+IF (a1% < 0) THEN a1% = 7
+Jerry.mouseattrib = (Jerry.mouseattrib AND &H8F) OR (a1% * 16)
+'Change char +  (Ctrl+Q)
 CASE CHR$(17)
-char% = char% + 1
-IF char% > 255 THEN char% = 0
-Jerry.mousetype = char%
+a1% = Jerry.mousetype
+a1% = a1% + 1
+IF a1% > 255 THEN a1% = 0
+Jerry.mousetype = a1%
+'Change char -  (Ctrl+W)
 CASE CHR$(23)
-char% = char% - 1
-IF char% < 0 THEN char% = 255
-Jerry.mousetype = char%
+a1% = Jerry.mousetype
+a1% = a1% - 1
+IF a1% < 0 THEN a1% = 255
+Jerry.mousetype = a1%
+'Copy char     (Ctrl+E)
 CASE CHR$(5)
 DEF SEG = &HB800
 Jerry.mousetype = PEEK(5000)
 DEF SEG
+'Copy attrib  (Ctrl+R)
 CASE CHR$(18)
+DEF SEG = &HB800
+Jerry.mouseattrib = PEEK(5001)
+DEF SEG
+'Copy char and attrib  (Ctrl+T)
+CASE CHR$(20)
+DEF SEG = &HB800
+Jerry.mousetype = PEEK(5000)
+Jerry.mouseattrib = PEEK(5001)
+DEF SEG
+'Display location  (Ctrl+Y)
+CASE CHR$(25)
 DEF SEG = &HB800
 FOR lv1& = 0 TO 159
 POKE 4000 + lv1&, PEEK(lv1&)
@@ -139,13 +172,12 @@ FOR lv1& = 0 TO 159
 POKE lv1&, PEEK(4000 + lv1&)
 NEXT
 DEF SEG
+'Save slide in save.dat  (Ctrl+P)
 CASE CHR$(16)
 save% = save% + 1
-OPEN "B", #2, "Save.dat"
-pos1& = LOF(2) + 1
-a1$ = CHR$(255)
-PUT #2, pos1&, a1$
-CLOSE #2
+mouse.end2
+savedat "save.dat"
+makecopy
 DEF SEG = &HB800
 FOR lv1& = 0 TO 159
 POKE 4000 + lv1&, PEEK(lv1&)
@@ -159,9 +191,9 @@ FOR lv1& = 0 TO 159
 POKE lv1&, PEEK(4000 + lv1&)
 NEXT
 DEF SEG
+'Write char on press
 CASE ELSE
-attr% = attr2% * 128 + attr3% * 16 + attr1%
-mouse.writeat2 ASC(k$), attr%
+mouse.writeat2 ASC(k$), Jerry.mouseattrib
 Jerry.xpos = Jerry.xpos + 1
 IF (Jerry.xpos > 79) THEN Jerry.xpos = 79
 mouse.put Jerry.xpos, Jerry.ypos
@@ -171,7 +203,7 @@ LOOP
 mouse.end2
 
 'Save
-IF (save% = 0) THEN
+IF (save% = 0 AND saveused% = 0) THEN
 OPEN "O", #1, "aaaa.dat"
 CLOSE #1
 DEF SEG = &HB800
@@ -214,6 +246,46 @@ POKE mem1&, ASC(file.byte)
 mem1& = mem1& + 1
 LOOP
 CLOSE #fr%
+DEF SEG
+END SUB
+
+SUB dat.loadpic (fl1$)
+SHARED save%
+fr% = FREEFILE
+OPEN "B", #fr%, fl1$
+length& = LOF(fr%)
+pos1& = 1
+DO
+SEEK #fr%, pos1&
+IF (pos1& + 4 > length&) THEN EXIT DO
+SEEK #fr%, pos1&
+k$ = INPUT$(4, #fr%)
+IF (LEFT$(k$, 1) = CHR$(255)) THEN
+        pos1& = pos1& + 1
+        SOUND 21000, 5
+        save% = save% + 1
+ELSE
+        x% = ASC(LEFT$(k$, 1))
+        y% = ASC(MID$(k$, 2, 1))
+        c% = ASC(MID$(k$, 3, 1))
+        a% = ASC(RIGHT$(k$, 1))
+        DEF SEG = &HB800
+        POKE (x% + y% * 80) * 2, c%
+        POKE (x% + y% * 80) * 2 + 1, a%
+        DEF SEG
+        pos1& = pos1& + 4
+END IF
+LOOP UNTIL pos1& > length&
+CLOSE #fr%
+END SUB
+
+SUB makecopy
+DEF SEG = &HB800
+mem1& = 0
+DO
+POKE 5002 + mem1&, PEEK(mem1&)
+mem1& = mem1& + 1
+LOOP UNTIL mem1& > 4000
 DEF SEG
 END SUB
 
@@ -421,26 +493,45 @@ DEF SEG = &HB800
 POKE 5000, char%
 POKE 5001, attr%
 DEF SEG
-OPEN "B", #2, "Save.dat"
-pos1& = LOF(2) + 1
-a1$ = CHR$(Jerry.xpos)
-PUT #2, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(Jerry.ypos)
-PUT #2, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(char%)
-PUT #2, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(attr%)
-PUT #2, pos1&, a1$
-pos1& = pos1& + 1
-CLOSE #2
 END SUB
 
 SUB mouse.writeat3 (char%, attr%)
 SHARED Jerry AS mouse
 Jerry.mousetype = char%
 Jerry.mouseattrib = NOT (attr%)
+END SUB
+
+SUB savedat (fl1$)
+fr% = FREEFILE
+OPEN "B", #fr%, fl1$
+pos1& = LOF(fr%) + 1
+a1$ = CHR$(255)
+PUT #fr%, pos1&, a1$
+pos1& = pos1& + 1
+DEF SEG = &HB800
+mem1& = 0
+DO
+IF (PEEK(mem1&) <> PEEK(5002 + mem1&) OR PEEK(mem1& + 1) <> PEEK(5003 + mem1&)) THEN
+yy% = mem1& \ 160
+xx% = (mem1& - yy% * 160) \ 2
+ch% = PEEK(mem1&)
+at% = PEEK(mem1& + 1)
+a1$ = CHR$(xx%)
+PUT #fr%, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(yy%)
+PUT #fr%, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(ch%)
+PUT #fr%, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(at%)
+PUT #fr%, pos1&, a1$
+pos1& = pos1& + 1
+END IF
+mem1& = mem1& + 2
+LOOP UNTIL mem1& > 4000
+DEF SEG
+CLOSE #fr%
 END SUB
 
