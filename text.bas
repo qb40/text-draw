@@ -1,4 +1,6 @@
-'Draw a Screen 0 Image = "aaaa.dat" bsave 4000 bytes
+'Draw a Screen 0 slided Image = "aaaa.dat" bsave 4000 bytes
+'xpos,ypos,char,attr
+'if(xpos=255) then new slide
 DECLARE SUB mouse.loadprog ()
 DECLARE FUNCTION mouse.init% ()
 DECLARE SUB mouse.show ()
@@ -137,6 +139,26 @@ FOR lv1& = 0 TO 159
 POKE lv1&, PEEK(4000 + lv1&)
 NEXT
 DEF SEG
+CASE CHR$(16)
+save% = save% + 1
+OPEN "B", #2, "Save.dat"
+pos1& = LOF(2) + 1
+a1$ = CHR$(255)
+PUT #2, pos1&, a1$
+CLOSE #2
+DEF SEG = &HB800
+FOR lv1& = 0 TO 159
+POKE 4000 + lv1&, PEEK(lv1&)
+NEXT
+DEF SEG
+LOCATE 1, 1
+PRINT "New slide"; save%
+k$ = INPUT$(1)
+DEF SEG = &HB800
+FOR lv1& = 0 TO 159
+POKE lv1&, PEEK(4000 + lv1&)
+NEXT
+DEF SEG
 CASE ELSE
 attr% = attr2% * 128 + attr3% * 16 + attr1%
 mouse.writeat2 ASC(k$), attr%
@@ -149,6 +171,7 @@ LOOP
 mouse.end2
 
 'Save
+IF (save% = 0) THEN
 OPEN "O", #1, "aaaa.dat"
 CLOSE #1
 DEF SEG = &HB800
@@ -159,7 +182,7 @@ PUT #1, i& + 1, k$
 NEXT
 CLOSE #1
 DEF SEG
-
+END IF
 errors: RESUME NEXT
 
 FUNCTION dat.datum% (fl1$, pos1&)
@@ -393,10 +416,26 @@ DEF SEG
 END SUB
 
 SUB mouse.writeat2 (char%, attr%)
+SHARED Jerry AS mouse
 DEF SEG = &HB800
 POKE 5000, char%
 POKE 5001, attr%
 DEF SEG
+OPEN "B", #2, "Save.dat"
+pos1& = LOF(2) + 1
+a1$ = CHR$(Jerry.xpos)
+PUT #2, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(Jerry.ypos)
+PUT #2, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(char%)
+PUT #2, pos1&, a1$
+pos1& = pos1& + 1
+a1$ = CHR$(attr%)
+PUT #2, pos1&, a1$
+pos1& = pos1& + 1
+CLOSE #2
 END SUB
 
 SUB mouse.writeat3 (char%, attr%)
