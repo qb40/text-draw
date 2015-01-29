@@ -221,6 +221,20 @@ DEF SEG
 END IF
 errors: RESUME NEXT
 
+SUB mouse.writeat2 (char%, attr%)
+SHARED Jerry AS Mouse
+DEF SEG = &HB800
+POKE 5000, char%
+POKE 5001, attr%
+DEF SEG
+END SUB
+
+SUB mouse.writeat3 (char%, attr%)
+SHARED Jerry AS Mouse
+Jerry.MouseType = char%
+Jerry.mouseattrib = NOT (attr%)
+END SUB
+
 FUNCTION dat.datum% (fl1$, pos1&)
 SHARED file AS filestring
 fr% = FREEFILE
@@ -497,35 +511,17 @@ END SUB
 SUB mouse.status
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 89
-CALL absolute(mem1&)
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 89
+CALL absolute(func&)
+
 DEF SEG = &H100
-a1% = PEEK(0)
-Jerry.left = a1% AND 1
-Jerry.right = (a1% AND 2) \ 2
-a1& = PEEK(2)
-a2& = PEEK(3)
-Jerry.xpos = (a2& * 256 + a1&) \ 8
-a1& = PEEK(4)
-a2& = PEEK(5)
-Jerry.ypos = (a2& * 256 + a1&) \ 8
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
-END SUB
-
-SUB mouse.writeat2 (char%, attr%)
-SHARED Jerry AS Mouse
-DEF SEG = &HB800
-POKE 5000, char%
-POKE 5001, attr%
-DEF SEG
-END SUB
-
-SUB mouse.writeat3 (char%, attr%)
-SHARED Jerry AS Mouse
-Jerry.MouseType = char%
-Jerry.mouseattrib = NOT (attr%)
 END SUB
 
 SUB savedat (fl1$)
