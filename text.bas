@@ -44,8 +44,8 @@ DECLARE SUB savedat (fl1$)
 
 
 ON ERROR GOTO errors
-DIM Jerry AS Mouse
-Mouse$ = ""
+DIM Jerry AS mouse
+mouse$ = ""
 Jerry.MouseType = 1
 Jerry.mouseattrib = 1
 Jerry.virtualattrib = 0
@@ -221,6 +221,223 @@ DEF SEG
 END IF
 errors: RESUME NEXT
 
+SUB mouse.end2
+SHARED Jerry AS mouse
+mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
+DEF SEG = &HB800
+POKE mem1&, PEEK(5000)
+POKE mem1& + 1, PEEK(5001)
+DEF SEG
+END SUB
+
+SUB mouse.hide
+SHARED Err$, MouseMod$
+
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 22
+CALL absolute(func&)
+DEF SEG
+
+END SUB
+
+SUB mouse.init
+SHARED Err$, MouseMod$
+
+'call init routine
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$)
+CALL absolute(func&)
+
+'check result
+DEF SEG = &H100
+IF (PEEK(0) = 255 AND PEEK(1) = 255) THEN a1% = 1
+DEF SEG
+IF a1% = 0 THEN GOTO mouse.init.err
+EXIT DEF
+
+mouse.init.err:
+Err$ = "Mouse not installed"
+ERROR 2
+END SUB
+
+SUB mouse.load
+SHARED Err$, MouseMod$
+
+'open mouse helper asm
+f% = FREEFILE
+OPEN "B", #f%, "mouse.dll"
+
+'verify if exists
+length& = LOF(f%)
+IF length& = 0 THEN GOTO mouse.load.err
+
+'load as module
+MouseMod$ = INPUT$(LOF(f%), #f%)
+CLOSE #f%
+EXIT DEF
+
+mouse.load.err:
+Err$ = "Mouse module - mouse.dll - cannot be found"
+ERROR 1
+END SUB
+
+SUB mouse.put (x&, y&)
+SHARED Err$, MouseMod$
+
+x& = x& * 8
+y& = y& * 8
+
+DEF SEG = &H101
+POKE 0, x& MOD 256
+POKE 1, x& \ 256
+POKE 2, y& MOD 256
+POKE 3, y& \ 256
+
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 66
+CALL absolute(func&)
+DEF SEG
+
+END SUB
+
+SUB mouse.relativestatus
+SHARED Jerry AS mouse
+SHARED mouse$
+DEF SEG = VARSEG(mouse$)
+mem1& = SADD(mouse$) + 117
+CALL absolute(mem1&)
+DEF SEG = &H100
+a1% = PEEK(0)
+Jerry.left = a1% AND 1
+Jerry.right = (a1% AND 2) \ 2
+a1& = PEEK(2)
+a2& = PEEK(3)
+Jerry.xpos = a2& * 256 + a1&
+IF (Jerry.xpos AND &H8000 = &H8000) THEN Jerry.xpos = -1 * (NOT (Jerry.xpos) + 1)
+Jerry.xpos = Jerry.xpos \ 2
+a1& = PEEK(4)
+a2& = PEEK(5)
+Jerry.ypos = a2& * 256 + a1&
+IF (Jerry.ypos AND &H8000 = &H8000) THEN Jerry.ypos = -1 * (NOT (Jerry.ypos) + 1)
+DEF SEG
+END SUB
+
+SUB mouse.setrange (x1%, y1%, x2%, y2%)
+SHARED mouse$
+DEF SEG = &H101
+POKE 1, 0'x1% MOD 256
+POKE 0, 0' x1% \ 256
+POKE 3, 200'x2% MOD 256
+POKE 2, 0'x2% \ 256
+POKE 5, 0'y1% MOD 256
+POKE 4, 0'y1% \ 256
+POKE 7, 100'y2% MOD 256
+POKE 6, 0'y2% \ 256
+DEF SEG = VARSEG(mouse$)
+mem1& = SADD(mouse$) + 28
+CALL absolute(mem1&)
+DEF SEG
+END SUB
+
+SUB mouse.show
+SHARED mouse$
+DEF SEG = VARSEG(mouse$)
+mem1& = SADD(mouse$) + 16
+CALL absolute(mem1&)
+DEF SEG
+END SUB
+
+SUB mouse.show2
+SHARED Jerry AS mouse, k$
+mouse.status
+IF (Jerry.virtualattrib > 0) THEN
+IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
+at% = Jerry.virtualattrib
+wr% = at% AND &HF
+IF (Jerry.left = 1) THEN wr% = (wr% * 2) AND &HF
+wr1% = at% AND &HF0
+IF (Jerry.right = 1) THEN wr1% = (wr1% * 2) AND &HF0
+wr% = wr1% + wr%
+IF (Jerry.oldxpos = Jerry.xpos AND Jerry.oldypos = Jerry.ypos) THEN
+DEF SEG = &HB800
+mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2 + 1
+POKE mem1&, wr%
+DEF SEG
+END IF
+Jerry.oldleft = Jerry.left
+Jerry.oldright = Jerry.right
+Jerry.mouseattrib = wr%
+END IF
+END IF
+IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos OR Jerry.oldmouseattrib <> Jerry.mouseattrib OR Jerry.oldmousetype <> Jerry.MouseType) THEN
+DEF SEG = &HB800
+mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
+POKE mem1&, PEEK(5000)
+POKE mem1& + 1, PEEK(5001)
+mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
+POKE 5000, PEEK(mem1&)
+POKE 5001, PEEK(mem1& + 1)
+POKE mem1&, Jerry.MouseType
+POKE mem1& + 1, Jerry.mouseattrib
+Jerry.oldypos = Jerry.ypos
+Jerry.oldxpos = Jerry.xpos
+Jerry.oldmouseattrib = Jerry.mouseattrib
+Jerry.oldmousetype = Jerry.MouseType
+DEF SEG
+END IF
+END SUB
+
+SUB mouse.show3
+SHARED Jerry AS mouse
+mouse.status
+IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
+DEF SEG = &HB800
+mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
+POKE mem1&, Jerry.MouseType
+POKE mem1& + 1, NOT (Jerry.mouseattrib)
+mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
+Jerry.MouseType = PEEK(mem1&)
+Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
+POKE mem1&, Jerry.MouseType
+POKE mem1& + 1, Jerry.mouseattrib
+Jerry.oldypos = Jerry.ypos
+Jerry.oldxpos = Jerry.xpos
+DEF SEG
+END IF
+END SUB
+
+SUB mouse.start2
+SHARED Jerry AS mouse
+mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
+DEF SEG = &HB800
+POKE 5000, PEEK(mem1&)
+POKE 5001, PEEK(mem1& + 1)
+DEF SEG
+END SUB
+
+SUB mouse.start3
+SHARED Jerry AS mouse
+DEF SEG = &HB800
+mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
+Jerry.MouseType = PEEK(mem1&)
+Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
+DEF SEG
+END SUB
+
+SUB mouse.writeat2 (char%, attr%)
+SHARED Jerry AS mouse
+DEF SEG = &HB800
+POKE 5000, char%
+POKE 5001, attr%
+DEF SEG
+END SUB
+
+SUB mouse.writeat3 (char%, attr%)
+SHARED Jerry AS mouse
+Jerry.MouseType = char%
+Jerry.mouseattrib = NOT (attr%)
+END SUB
+
 FUNCTION dat.datum% (fl1$, pos1&)
 SHARED file AS filestring
 fr% = FREEFILE
@@ -293,239 +510,20 @@ LOOP UNTIL mem1& > 4000
 DEF SEG
 END SUB
 
-SUB mouse.end2
-SHARED Jerry AS Mouse
-mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
-DEF SEG = &HB800
-POKE mem1&, PEEK(5000)
-POKE mem1& + 1, PEEK(5001)
-DEF SEG
-END SUB
-
-SUB mouse.hide
-SHARED Err$, MouseMod$
-
-DEF SEG = VARSEG(MouseMod$)
-func& = SADD(MouseMod$) + 22
-CALL absolute(func&)
-DEF SEG
-
-END SUB
-
-SUB mouse.init
-SHARED Err$, MouseMod$
-
-'call init routine
-DEF SEG = VARSEG(MouseMod$)
-func& = SADD(MouseMod$)
-CALL absolute(func&)
-
-'check result
-DEF SEG = &H100
-IF (PEEK(0) = 255 AND PEEK(1) = 255) THEN a1% = 1
-DEF SEG
-IF a1% = 0 THEN GOTO mouse.init.err
-EXIT SUB
-
-mouse.init.err:
-Err$ = "Mouse not installed"
-ERROR 2
-END SUB
-
-SUB mouse.load
-SHARED Err$, MouseMod$
-
-'open mouse helper asm
-f% = FREEFILE
-OPEN "B", #f%, "mouse.dll"
-
-'verify if exists
-length& = LOF(f%)
-IF length& = 0 THEN GOTO mouse.load.err
-
-'load as module
-MouseMod$ = INPUT$(LOF(f%), #f%)
-CLOSE #f%
-EXIT SUB
-
-mouse.load.err:
-Err$ = "Mouse module - mouse.dll - cannot be found"
-ERROR 1
-END SUB
-
-SUB mouse.put (x&, y&)
-SHARED Err$, MouseMod$
-
-x& = x& * 8
-y& = y& * 8
-DEF SEG = &H101
-POKE 0, x& MOD 256
-POKE 1, x& \ 256
-POKE 2, y& MOD 256
-POKE 3, y& \ 256
-DEF SEG = VARSEG(MouseMod$)
-func& = SADD(MouseMod$) + 66
-CALL absolute(func&)
-DEF SEG
-
-END SUB
-
-SUB mouse.relativestatus
-SHARED Jerry AS Mouse
-SHARED Mouse$
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 117
-CALL absolute(mem1&)
-DEF SEG = &H100
-a1% = PEEK(0)
-Jerry.left = a1% AND 1
-Jerry.right = (a1% AND 2) \ 2
-a1& = PEEK(2)
-a2& = PEEK(3)
-Jerry.xpos = a2& * 256 + a1&
-IF (Jerry.xpos AND &H8000 = &H8000) THEN Jerry.xpos = -1 * (NOT (Jerry.xpos) + 1)
-Jerry.xpos = Jerry.xpos \ 2
-a1& = PEEK(4)
-a2& = PEEK(5)
-Jerry.ypos = a2& * 256 + a1&
-IF (Jerry.ypos AND &H8000 = &H8000) THEN Jerry.ypos = -1 * (NOT (Jerry.ypos) + 1)
-DEF SEG
-END SUB
-
-SUB mouse.setrange (x1%, y1%, x2%, y2%)
-SHARED Mouse$
-DEF SEG = &H101
-POKE 1, 0'x1% MOD 256
-POKE 0, 0' x1% \ 256
-POKE 3, 200'x2% MOD 256
-POKE 2, 0'x2% \ 256
-POKE 5, 0'y1% MOD 256
-POKE 4, 0'y1% \ 256
-POKE 7, 100'y2% MOD 256
-POKE 6, 0'y2% \ 256
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 28
-CALL absolute(mem1&)
-DEF SEG
-END SUB
-
-SUB mouse.show
-SHARED Mouse$
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 16
-CALL absolute(mem1&)
-DEF SEG
-END SUB
-
-SUB mouse.show2
-SHARED Jerry AS Mouse, k$
-mouse.status
-IF (Jerry.virtualattrib > 0) THEN
-IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
-at% = Jerry.virtualattrib
-wr% = at% AND &HF
-IF (Jerry.left = 1) THEN wr% = (wr% * 2) AND &HF
-wr1% = at% AND &HF0
-IF (Jerry.right = 1) THEN wr1% = (wr1% * 2) AND &HF0
-wr% = wr1% + wr%
-IF (Jerry.oldxpos = Jerry.xpos AND Jerry.oldypos = Jerry.ypos) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2 + 1
-POKE mem1&, wr%
-DEF SEG
-END IF
-Jerry.oldleft = Jerry.left
-Jerry.oldright = Jerry.right
-Jerry.mouseattrib = wr%
-END IF
-END IF
-IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos OR Jerry.oldmouseattrib <> Jerry.mouseattrib OR Jerry.oldmousetype <> Jerry.MouseType) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-POKE mem1&, PEEK(5000)
-POKE mem1& + 1, PEEK(5001)
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
-POKE 5000, PEEK(mem1&)
-POKE 5001, PEEK(mem1& + 1)
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, Jerry.mouseattrib
-Jerry.oldypos = Jerry.ypos
-Jerry.oldxpos = Jerry.xpos
-Jerry.oldmouseattrib = Jerry.mouseattrib
-Jerry.oldmousetype = Jerry.MouseType
-DEF SEG
-END IF
-END SUB
-
-SUB mouse.show3
-SHARED Jerry AS Mouse
-mouse.status
-IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, NOT (Jerry.mouseattrib)
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
-Jerry.MouseType = PEEK(mem1&)
-Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, Jerry.mouseattrib
-Jerry.oldypos = Jerry.ypos
-Jerry.oldxpos = Jerry.xpos
-DEF SEG
-END IF
-END SUB
-
-SUB mouse.start2
-SHARED Jerry AS Mouse
-mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
-DEF SEG = &HB800
-POKE 5000, PEEK(mem1&)
-POKE 5001, PEEK(mem1& + 1)
-DEF SEG
-END SUB
-
-SUB mouse.start3
-SHARED Jerry AS Mouse
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-Jerry.MouseType = PEEK(mem1&)
-Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
-DEF SEG
-END SUB
-
 SUB mouse.status
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED Err$, MouseMod$, mouse AS DosMouse
 
-DEF SEG = VARSEG(Mouse$)
-mem1& = SADD(Mouse$) + 89
-CALL absolute(mem1&)
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 89
+CALL absolute(func&)
+
 DEF SEG = &H100
-a1% = PEEK(0)
-Jerry.left = a1% AND 1
-Jerry.right = (a1% AND 2) \ 2
-a1& = PEEK(2)
-a2& = PEEK(3)
-Jerry.xpos = (a2& * 256 + a1&) \ 8
-a1& = PEEK(4)
-a2& = PEEK(5)
-Jerry.ypos = (a2& * 256 + a1&) \ 8
+mouse.lb = PEEK(0) AND 1
+mouse.rb = (PEEK(0) \ 2) AND 1
+mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
-END SUB
-
-SUB mouse.writeat2 (char%, attr%)
-SHARED Jerry AS Mouse
-DEF SEG = &HB800
-POKE 5000, char%
-POKE 5001, attr%
-DEF SEG
-END SUB
-
-SUB mouse.writeat3 (char%, attr%)
-SHARED Jerry AS Mouse
-Jerry.MouseType = char%
-Jerry.mouseattrib = NOT (attr%)
 END SUB
 
 SUB savedat (fl1$)
