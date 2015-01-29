@@ -1,4 +1,5 @@
-'Draw a Screen 0 slided Image = "aaaa.dat" bsave 4000 bytes
+'Draw a Screen 0 slided Image = "aaaa.dat"
+'bsave 4000 bytes
 'xpos,ypos,char,attr
 'if(xpos=255) then new slide
 DECLARE SUB mouse.loadprog ()
