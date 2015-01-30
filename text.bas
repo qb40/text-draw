@@ -1,6 +1,4 @@
-DECLARE SUB mouse.load ()
-DECLARE SUB mouse.start2 ()
-
+DECLARE SUB tex.load (fsrc$)
 'dos mouse type
 TYPE DosMouse
 x AS LONG
@@ -15,31 +13,34 @@ mode AS INTEGER
 attr AS INTEGER
 oldMype AS INTEGER
 oldAttr AS INTEGER
-virtAttr AS INTEGER
+virtattr AS INTEGER
 END TYPE
 
 'function declarations
-DECLARE SUB mouse.load ()
-DECLARE SUB mouse.show ()
-DECLARE SUB mouse.start2 ()
-DECLARE SUB mouse.show2 ()
-DECLARE SUB mouse.end2 ()
-DECLARE SUB mouse.start3 ()
-DECLARE SUB mouse.show3 ()
-DECLARE SUB mouse.writeat2 (char%, attr%)
-DECLARE SUB mouse.writeat3 (char%, attr%)
-DECLARE SUB mouse.hide ()
-DECLARE SUB mouse.setrange (x1%, y1%, x2%, y2%)
-DECLARE SUB mouse.put (x&, y&)
-DECLARE SUB mouse.status ()
-DECLARE SUB mouse.relativestatus ()
-DECLARE SUB mouse.start2 ()
-
+DECLARE SUB ms.load ()
+DECLARE SUB ms.init ()
+DECLARE SUB ms.show ()
+DECLARE SUB ms.start2 ()
+DECLARE SUB ms.show2 ()
+DECLARE SUB ms.end2 ()
+DECLARE SUB ms.start3 ()
+DECLARE SUB ms.show3 ()
+DECLARE SUB ms.writeat2 (char%, attr%)
+DECLARE SUB ms.writeat3 (char%, attr%)
+DECLARE SUB ms.hide ()
+DECLARE SUB ms.range (x1%, y1%, x2%, y2%)
+DECLARE SUB ms.put (x&, y&)
+DECLARE SUB ms.status ()
+DECLARE SUB ms.relativestatus ()
+DECLARE SUB ms.start2 ()
 DECLARE FUNCTION dat.datum% (fl1$, pos1&)
 DECLARE SUB dat.loaddata (fl1$, pos1&, pos2&, segment&)
 DECLARE SUB dat.loadpic (fl1$)
 DECLARE SUB makecopy ()
 DECLARE SUB savedat (fl1$)
+DECLARE FUNCTION lastIndexOf% (s$, f$)
+DECLARE FUNCTION fl.name$ (fsrc$)
+DECLARE FUNCTION fl.full$ (fsrc$)
 
 'Draw a Screen 0 slided Image = "aaaa.dat"
 'bsave 4000 bytes
@@ -47,49 +48,20 @@ DECLARE SUB savedat (fl1$)
 'if(xpos=255) then new slide
 
 
-ON ERROR GOTO errors
-DIM Jerry AS mouse
-mouse$ = ""
-Jerry.MouseType = 1
-Jerry.mouseattrib = 1
-Jerry.virtualattrib = 0
-
-TYPE filestring
-        byte AS STRING * 1
-END TYPE
-DIM file AS filestring
+'handle errors
+ON ERROR GOTO err.handler
+DIM SHARED Err$, MouseMod$, Mouse AS DosMouse
+Mouse.mode = 1
+Mouse.attr = 1
+Mouse.virtattr = 0
 
 
-'Start mouse
+'start
 SCREEN 0
-mouse.load
-a1% = mouse.init%
-IF (a1% <> 1) THEN
-PRINT "Mouse not installed."
-SYSTEM
-END IF
-mouse.hide
-mouse.put 0, 0
-
-'BLOAD "aaaa.dat", &HB800
-DEF SEG = &HB800
-OPEN "B", #1, "aaaa.dat"
-SEEK #1, 1
-FOR i& = 0 TO LOF(1) - 1
-k$ = INPUT$(1, #1)
-POKE i&, ASC(k$)
-NEXT
-CLOSE #1
-DEF SEG
-
-k$ = INPUT$(1)
-OPEN "B", #1, "Save.dat"
-IF (LOF(1) <> 0) THEN
-dat.loadpic "save.dat"
-saveused% = 1
-END IF
-CLOSE #1
-
+ms.init
+ms.hide
+ms.put 0, 0
+tex.load "aaaa.dat"
 
 mouse.start2
 Jerry.MouseType = 1
@@ -223,21 +195,10 @@ NEXT
 CLOSE #1
 DEF SEG
 END IF
-errors: RESUME NEXT
 
-SUB mouse.writeat2 (char%, attr%)
-SHARED Jerry AS Mouse
-DEF SEG = &HB800
-POKE 5000, char%
-POKE 5001, attr%
-DEF SEG
-END SUB
 
-SUB mouse.writeat3 (char%, attr%)
-SHARED Jerry AS Mouse
-Jerry.MouseType = char%
-Jerry.mouseattrib = NOT (attr%)
-END SUB
+err.handler:
+RESUME NEXT
 
 FUNCTION dat.datum% (fl1$, pos1&)
 SHARED file AS filestring
@@ -301,6 +262,29 @@ LOOP UNTIL pos1& > length&
 CLOSE #fr%
 END SUB
 
+FUNCTION fl.full$ (fsrc$, ext$)
+
+fl.full$ = fl.name$(fsrc$) + ext$
+END FUNCTION
+
+FUNCTION fl.name$ (fsrc$)
+
+dot% = lastIndexOf%(fsrc$, ".")
+IF dot% = -1 THEN fl.name$ = fsrc$ ELSE fl.name$ = LEFT$(fsrc$, LEN(fsrc$) - dot%)
+END FUNCTION
+
+FUNCTION lastIndexOf% (s$, f$)
+
+sLen% = LEN(s$)
+fLen% = LEN(f$)
+FOR i% = 1 TO sLen% - fLen% + 1
+t$ = MID$(s$, i%, fLen%)
+IF t$ = f$ THEN EXIT FOR
+NEXT
+
+IF t$ = f$ THEN lastIndexOf% = i% ELSE lastIndexOf% = -1
+END FUNCTION
+
 SUB makecopy
 DEF SEG = &HB800
 mem1& = 0
@@ -311,8 +295,8 @@ LOOP UNTIL mem1& > 4000
 DEF SEG
 END SUB
 
-SUB mouse.end2
-SHARED Jerry AS mouse
+SUB ms.end2
+SHARED Jerry AS Mouse
 mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
 DEF SEG = &HB800
 POKE mem1&, PEEK(5000)
@@ -320,7 +304,7 @@ POKE mem1& + 1, PEEK(5001)
 DEF SEG
 END SUB
 
-SUB mouse.hide
+SUB ms.hide
 SHARED Err$, MouseMod$
 
 DEF SEG = VARSEG(MouseMod$)
@@ -330,10 +314,11 @@ DEF SEG
 
 END SUB
 
-SUB mouse.init
+SUB ms.init
 SHARED Err$, MouseMod$
 
 'call init routine
+IF LEN(MouseMod$) = 0 THEN ms.load
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$)
 CALL absolute(func&)
@@ -350,7 +335,7 @@ Err$ = "Mouse not installed"
 ERROR 2
 END SUB
 
-SUB mouse.load
+SUB ms.load
 SHARED Err$, MouseMod$
 
 'open mouse helper asm
@@ -371,7 +356,7 @@ Err$ = "Mouse module - mouse.dll - cannot be found"
 ERROR 1
 END SUB
 
-SUB mouse.put (x&, y&)
+SUB ms.put (x&, y&)
 SHARED Err$, MouseMod$
 
 x& = x& * 8
@@ -388,11 +373,31 @@ DEF SEG
 
 END SUB
 
-SUB mouse.relativestatus
-SHARED Jerry AS mouse
-SHARED mouse$
-DEF SEG = VARSEG(mouse$)
-mem1& = SADD(mouse$) + 117
+SUB ms.range (x1%, y1%, x2%, y2%)
+SHARED Err$, MouseMod$
+
+DEF SEG = &H101
+POKE 1, 0   'x1% MOD 256
+POKE 0, 0   ' x1% \ 256
+POKE 3, 200 'x2% MOD 256
+POKE 2, 0   'x2% \ 256
+POKE 5, 0   'y1% MOD 256
+POKE 4, 0   'y1% \ 256
+POKE 7, 100 'y2% MOD 256
+POKE 6, 0   'y2% \ 256
+
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 28
+CALL absolute(func&)
+DEF SEG
+
+END SUB
+
+SUB ms.relativestatus
+SHARED Jerry AS Mouse
+SHARED Mouse$
+DEF SEG = VARSEG(Mouse$)
+mem1& = SADD(Mouse$) + 117
 CALL absolute(mem1&)
 DEF SEG = &H100
 a1% = PEEK(0)
@@ -410,24 +415,7 @@ IF (Jerry.ypos AND &H8000 = &H8000) THEN Jerry.ypos = -1 * (NOT (Jerry.ypos) + 1
 DEF SEG
 END SUB
 
-SUB mouse.setrange (x1%, y1%, x2%, y2%)
-SHARED mouse$
-DEF SEG = &H101
-POKE 1, 0'x1% MOD 256
-POKE 0, 0' x1% \ 256
-POKE 3, 200'x2% MOD 256
-POKE 2, 0'x2% \ 256
-POKE 5, 0'y1% MOD 256
-POKE 4, 0'y1% \ 256
-POKE 7, 100'y2% MOD 256
-POKE 6, 0'y2% \ 256
-DEF SEG = VARSEG(mouse$)
-mem1& = SADD(mouse$) + 28
-CALL absolute(mem1&)
-DEF SEG
-END SUB
-
-SUB mouse.show
+SUB ms.show
 SHARED Err$, MouseMod$
 
 DEF SEG = VARSEG(MouseMod$)
@@ -437,8 +425,8 @@ DEF SEG
 
 END SUB
 
-SUB mouse.show2
-SHARED Jerry AS mouse, k$
+SUB ms.show2
+SHARED Jerry AS Mouse, k$
 mouse.status
 IF (Jerry.virtualattrib > 0) THEN
 IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
@@ -477,8 +465,8 @@ DEF SEG
 END IF
 END SUB
 
-SUB mouse.show3
-SHARED Jerry AS mouse
+SUB ms.show3
+SHARED Jerry AS Mouse
 mouse.status
 IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
 DEF SEG = &HB800
@@ -496,8 +484,8 @@ DEF SEG
 END IF
 END SUB
 
-SUB mouse.start2
-SHARED Jerry AS mouse
+SUB ms.start2
+SHARED Jerry AS Mouse
 mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
 DEF SEG = &HB800
 POKE 5000, PEEK(mem1&)
@@ -505,8 +493,8 @@ POKE 5001, PEEK(mem1& + 1)
 DEF SEG
 END SUB
 
-SUB mouse.start3
-SHARED Jerry AS mouse
+SUB ms.start3
+SHARED Jerry AS Mouse
 DEF SEG = &HB800
 mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
 Jerry.MouseType = PEEK(mem1&)
@@ -514,20 +502,34 @@ Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
 DEF SEG
 END SUB
 
-SUB mouse.status
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SUB ms.status
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 89
 CALL absolute(func&)
 
 DEF SEG = &H100
-mouse.lb = PEEK(0) AND 1
-mouse.rb = (PEEK(0) \ 2) AND 1
-mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
-mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
+END SUB
+
+SUB ms.writeat2 (char%, attr%)
+SHARED Jerry AS Mouse
+DEF SEG = &HB800
+POKE 5000, char%
+POKE 5001, attr%
+DEF SEG
+END SUB
+
+SUB ms.writeat3 (char%, attr%)
+SHARED Jerry AS Mouse
+Jerry.MouseType = char%
+Jerry.mouseattrib = NOT (attr%)
 END SUB
 
 SUB savedat (fl1$)
@@ -562,5 +564,41 @@ mem1& = mem1& + 2
 LOOP UNTIL mem1& > 4000
 DEF SEG
 CLOSE #fr%
+END SUB
+
+SUB tex.load (fsrc$)
+
+'get data from file
+length& = 4000
+f% = FREEFILE
+OPEN "b", #f%, fsrc$
+chars$ = INPUT$(length&, #1)
+CLOSE #f%
+
+'write data to screen
+DEF SEG = &HB800
+FOR i& = 0 TO length& - 1
+POKE i&, ASC(MID$(chars$, i&, 1))
+NEXT
+DEF SEG
+
+END SUB
+
+SUB tex.save (fdst$)
+
+'load data from screen
+length& = 4000
+DEF SEG = &HB800
+FOR i& = 0 TO length& - 1
+chars$ = chars$ + CHR$(PEEK(i&))
+NEXT
+DEF SEG
+
+'save data to file
+f% = FREEFILE
+OPEN "B", #f%, fdst$
+PUT #1, , chars$
+CLOSE #f%
+
 END SUB
 
