@@ -28,12 +28,12 @@ DECLARE SUB ms.statabs ()
 DECLARE SUB ms.statrel ()
 DECLARE SUB ms.pos (x%, y%)
 DECLARE SUB ms.move (dx%, dy%)
-DECLARE SUB ms.get (char%, attr%)
-DECLARE SUB ms.put (char%, attr%)
-DECLARE SUB ms.draw (char%, attr%)
+DECLARE SUB ms.get (byte%, attv%)
+DECLARE SUB ms.put (byte%, attv%)
+DECLARE SUB ms.draw (byte%, attv%)
 DECLARE SUB ms.range (x1%, y1%, x2%, y2%)
-DECLARE SUB scr.get (x%, y%, char%, attr%)
-DECLARE SUB scr.put (x%, y%, char%, attr%)
+DECLARE SUB scr.get (x%, y%, byte%, attv%)
+DECLARE SUB scr.put (x%, y%, byte%, attv%)
 DECLARE FUNCTION scr.addr& (x%, y%)
 DECLARE SUB tex.load (fsrc$)
 DECLARE SUB tex.save (fdst$)
@@ -210,7 +210,7 @@ NEXT
 IF t$ = f$ THEN lastIndexOf% = i% ELSE lastIndexOf% = -1
 END FUNCTION
 
-SUB ms.draw (byte%, attr%)
+SUB ms.draw (byte%, attv%)
 SHARED err$, MouseMod$, Mouse AS DosMouse, k$
 
 oldx% = Mouse.x
@@ -223,17 +223,17 @@ scr.get Mouse.x, Mouse.y, char0%, attr0%
 ms.put char0%, attr0%
 
 ms.draw.draw:
-scr.put Mouse.x, Mouse.y, byte%, attr% OR 16
+scr.put Mouse.x, Mouse.y, byte%, attv% OR 16
 
 ms.draw.end:
 END SUB
 
-SUB ms.get (byte%, attr%)
+SUB ms.get (byte%, attv%)
 SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
 byte% = PEEK(5000)
-attr% = PEEK(5001)
+attv% = PEEK(5001)
 DEF SEG
 
 END SUB
@@ -326,12 +326,12 @@ DEF SEG
 
 END SUB
 
-SUB ms.put (byte%, attr%)
+SUB ms.put (byte%, attv%)
 SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
 POKE 5000, byte%
-POKE 5001, attr%
+POKE 5001, attv%
 DEF SEG
 
 END SUB
@@ -404,22 +404,22 @@ FUNCTION scr.addr& (x%, y%)
 scr.addr& = ((y% * 80 + x%) * 2)
 END FUNCTION
 
-SUB scr.get (x%, y%, byte%, attr%)
+SUB scr.get (x%, y%, byte%, attv%)
 
 ptr& = scr.addr&(x%, y%)
 DEF SEG = &HB800
 byte% = PEEK(ptr&)
-attr% = PEEK(ptr& + 1)
+attv% = PEEK(ptr& + 1)
 DEF SEG
 
 END SUB
 
-SUB scr.put (x%, y%, byte%, attr%)
+SUB scr.put (x%, y%, byte%, attv%)
 
 ptr& = scr.addr(x%, y%)
 DEF SEG = &HB800
 POKE ptr&, byte%
-POKE ptr& + 1, attr%
+POKE ptr& + 1, attv%
 DEF SEG
 
 END SUB
