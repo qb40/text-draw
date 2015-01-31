@@ -1,5 +1,3 @@
-DECLARE SUB ms.move (dx%, dy%)
-DECLARE SUB ms.pos (x&, y&)
 'dos mouse type
 TYPE DosMouse
 x AS LONG
@@ -17,6 +15,14 @@ END TYPE
 
 
 'function declarations
+DECLARE SUB ms.statabs ()
+DECLARE SUB ms.absinfo ()
+DECLARE SUB scr.get (x%, y%, char%, attr%)
+DECLARE SUB ms.getat (char%, attr%)
+DECLARE SUB scr.put (x%, y%, char%, attr%)
+DECLARE FUNCTION scr.addr& (x%, y%)
+DECLARE SUB ms.move (dx%, dy%)
+DECLARE SUB ms.pos (x&, y&)
 DECLARE SUB ms.load ()
 DECLARE SUB ms.init ()
 DECLARE SUB ms.show ()
@@ -252,68 +258,6 @@ tex.save fsrc$
 err.handler:
 RESUME NEXT
 
-FUNCTION dat.datum% (fl1$, pos1&)
-SHARED file AS filestring
-fr% = FREEFILE
-OPEN "B", #fr%, fl1$
-SEEK #fr%, pos1&
-file.byte = INPUT$(1, #fr%)
-CLOSE #fr%
-dat.datum% = ASC(file.byte)
-END FUNCTION
-
-SUB dat.loaddata (fl1$, pos1&, pos2&, segment&)
-SHARED file AS filestring
-DEF SEG = segment&
-fr% = FREEFILE
-OPEN "B", #fr%, fl1$
-IF (pos2& > LOF(fr%)) THEN pos2& = LOF(fr%)
-posp& = pos1&
-sz& = pos2& - pos1& + 3
-POKE 0, (sz& AND &HFF00) \ &H100
-POKE 1, sz& MOD 256
-mem1& = 2
-DO UNTIL posp& > pos2&
-SEEK #fr%, posp&
-posp& = posp& + 1
-file.byte = INPUT$(1, #fr%)
-POKE mem1&, ASC(file.byte)
-mem1& = mem1& + 1
-LOOP
-CLOSE #fr%
-DEF SEG
-END SUB
-
-SUB dat.loadpic (fl1$)
-SHARED save%
-fr% = FREEFILE
-OPEN "B", #fr%, fl1$
-length& = LOF(fr%)
-pos1& = 1
-DO
-SEEK #fr%, pos1&
-IF (pos1& + 4 > length&) THEN EXIT DO
-SEEK #fr%, pos1&
-k$ = INPUT$(4, #fr%)
-IF (LEFT$(k$, 1) = CHR$(255)) THEN
-        pos1& = pos1& + 1
-        SOUND 21000, 5
-        save% = save% + 1
-ELSE
-        x% = ASC(LEFT$(k$, 1))
-        y% = ASC(MID$(k$, 2, 1))
-        c% = ASC(MID$(k$, 3, 1))
-        a% = ASC(RIGHT$(k$, 1))
-        DEF SEG = &HB800
-        POKE (x% + y% * 80) * 2, c%
-        POKE (x% + y% * 80) * 2 + 1, a%
-        DEF SEG
-        pos1& = pos1& + 4
-END IF
-LOOP UNTIL pos1& > length&
-CLOSE #fr%
-END SUB
-
 FUNCTION fl.full$ (fsrc$, ext$)
 
 fl.full$ = fl.name$(fsrc$) + ext$
@@ -337,57 +281,15 @@ NEXT
 IF t$ = f$ THEN lastIndexOf% = i% ELSE lastIndexOf% = -1
 END FUNCTION
 
-SUB makecopy
-DEF SEG = &HB800
-mem1& = 0
-DO
-POKE 5002 + mem1&, PEEK(mem1&)
-mem1& = mem1& + 1
-LOOP UNTIL mem1& > 4000
-DEF SEG
-END SUB
-
 SUB ms.draw (char%, attr%)
 SHARED Err$, MouseMod$, Mouse AS DosMouse, k$
 
 ms.get char0%, attr0%
-
-ms.getabs
-IF (Jerry.virtualattrib > 0) THEN
-IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
-at% = Jerry.virtualattrib
-wr% = at% AND &HF
-IF (Jerry.left = 1) THEN wr% = (wr% * 2) AND &HF
-wr1% = at% AND &HF0
-IF (Jerry.right = 1) THEN wr1% = (wr1% * 2) AND &HF0
-wr% = wr1% + wr%
-IF (Jerry.oldxpos = Jerry.xpos AND Jerry.oldypos = Jerry.ypos) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2 + 1
-POKE mem1&, wr%
-DEF SEG
-END IF
-Jerry.oldleft = Jerry.left
-Jerry.oldright = Jerry.right
-Jerry.mouseattrib = wr%
-END IF
-END IF
-IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos OR Jerry.oldmouseattrib <> Jerry.mouseattrib OR Jerry.oldmousetype <> Jerry.MouseType) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-POKE mem1&, PEEK(5000)
-POKE mem1& + 1, PEEK(5001)
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
-POKE 5000, PEEK(mem1&)
-POKE 5001, PEEK(mem1& + 1)
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, Jerry.mouseattrib
-Jerry.oldypos = Jerry.ypos
-Jerry.oldxpos = Jerry.xpos
-Jerry.oldmouseattrib = Jerry.mouseattrib
-Jerry.oldmousetype = Jerry.MouseType
-DEF SEG
-END IF
+scr.put Mouse.x, Mouse.y, char0%, attr0%
+ms.statabs
+scr.get Mouse.x, Mouse.y, char0%, attr0%
+ms.put char0%, attr0%
+scr.put Mouse.x, Mouse.y, char%, attr%
 
 END SUB
 
@@ -397,39 +299,6 @@ SHARED Err$, MouseMod$, Mouse AS DosMouse
 DEF SEG = &HB800
 char% = PEEK(5000)
 attr% = PEEK(5001)
-DEF SEG
-
-END SUB
-
-SUB ms.getabs
-SHARED Err$, MouseMod$, Mouse AS DosMouse
-
-DEF SEG = VARSEG(MouseMod$)
-func& = SADD(MouseMod$) + 89
-CALL absolute(func&)
-
-DEF SEG = &H100
-Mouse.lb = PEEK(0) AND 1
-Mouse.rb = (PEEK(0) \ 2) AND 1
-Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
-Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
-DEF SEG
-
-END SUB
-
-SUB ms.getrel
-SHARED Err$, MouseMod$, Mouse AS DosMouse
-
-DEF SEG = VARSEG(MouseMod$)
-func& = SADD(MouseMod$) + 117
-CALL absolute(func&)
-
-DEF SEG = &H100
-a1% = PEEK(0)
-Mouse.lb = PEEK(0) AND 1
-Mouse.rb = (PEEK(0) \ 2) AND 1
-Mouse.x = CVI(CHR$(PEEK(2)) + CHR$(PEEK(3))) \ 2
-Mouse.y = CVI(CHR$(PEEK(4)) + CHR$(PEEK(5)))
 DEF SEG
 
 END SUB
@@ -493,10 +362,7 @@ Mouse.x = Mouse.x + dx%
 Mouse.y = Mouse.y + dy% + (Mouse.x \ 80)
 Mouse.x = (Mouse.x + 80) MOD 80
 Mouse.y = (Mouse.y + 25) MOD 25
-
-ms.hide
 ms.pos Mouse.x, Mouse.y
-ms.show
 
 END SUB
 
@@ -559,99 +425,62 @@ DEF SEG
 
 END SUB
 
-SUB ms.show3
+SUB ms.statabs
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-mouse.status
-IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, NOT (Jerry.mouseattrib)
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
-Jerry.MouseType = PEEK(mem1&)
-Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, Jerry.mouseattrib
-Jerry.oldypos = Jerry.ypos
-Jerry.oldxpos = Jerry.xpos
-DEF SEG
-END IF
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 89
+CALL absolute(func&)
 
-END SUB
-
-SUB ms.start2
-SHARED Err$, MouseMod$, Mouse AS DosMouse
-
-mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
-DEF SEG = &HB800
-POKE 5000, PEEK(mem1&)
-POKE 5001, PEEK(mem1& + 1)
+DEF SEG = &H100
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
 END SUB
 
-SUB ms.start3
+SUB ms.statrel
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-Jerry.MouseType = PEEK(mem1&)
-Jerry.mouseattrib = NOT (PEEK(mem1& + 1))
+DEF SEG = VARSEG(MouseMod$)
+func& = SADD(MouseMod$) + 117
+CALL absolute(func&)
+
+DEF SEG = &H100
+a1% = PEEK(0)
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = CVI(CHR$(PEEK(2)) + CHR$(PEEK(3))) \ 2
+Mouse.y = CVI(CHR$(PEEK(4)) + CHR$(PEEK(5)))
 DEF SEG
 
 END SUB
 
-SUB ms.writeat2 (char%, attr%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+FUNCTION scr.addr& (x%, y%)
 
+scr.addr& = ((y% * 80 + x%) * 2)
+END FUNCTION
+
+SUB scr.get (x%, y%, char%, attr%)
+
+ptr& = scr.addr&(x%, y%)
 DEF SEG = &HB800
-POKE 5000, char%
-POKE 5001, attr%
+char% = PEEK(ptr&)
+attr% = PEEK(ptr& + 1)
 DEF SEG
 
 END SUB
 
-SUB ms.writeat3 (char%, attr%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SUB scr.put (x%, y%, char%, attr%)
 
-Jerry.MouseType = char%
-Jerry.mouseattrib = NOT (attr%)
-
-END SUB
-
-SUB savedat (fl1$)
-fr% = FREEFILE
-OPEN "B", #fr%, fl1$
-pos1& = LOF(fr%) + 1
-a1$ = CHR$(255)
-PUT #fr%, pos1&, a1$
-pos1& = pos1& + 1
+ptr& = scr.addr(x%, y%)
 DEF SEG = &HB800
-mem1& = 0
-DO
-IF (PEEK(mem1&) <> PEEK(5002 + mem1&) OR PEEK(mem1& + 1) <> PEEK(5003 + mem1&)) THEN
-yy% = mem1& \ 160
-xx% = (mem1& - yy% * 160) \ 2
-ch% = PEEK(mem1&)
-at% = PEEK(mem1& + 1)
-a1$ = CHR$(xx%)
-PUT #fr%, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(yy%)
-PUT #fr%, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(ch%)
-PUT #fr%, pos1&, a1$
-pos1& = pos1& + 1
-a1$ = CHR$(at%)
-PUT #fr%, pos1&, a1$
-pos1& = pos1& + 1
-END IF
-mem1& = mem1& + 2
-LOOP UNTIL mem1& > 4000
+POKE ptr&, char%
+POKE ptr& + 1, attr%
 DEF SEG
-CLOSE #fr%
+
 END SUB
 
 SUB tex.help
