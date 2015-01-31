@@ -50,7 +50,7 @@ DIM attr AS ScreenAttr
 CONST kbkspc = 8, kenter = 13, ktab = 9, kesc = 27
 CONST kleft = 75, kright = 77, kup = 72, kdown = 80
 CONST kuplt = 71, kuprt = 73, kdnlt = 79, kdnrt = 81
-CONST kins = 82, khome = 73, kpgup = 71, kdel = 83, kend = 81, kpgdn = 79
+CONST kins = 82, kpgup = 73, khome = 71, kdel = 83, kpgdn = 81, kend = 79
 CONST kf1 = 59, kf2 = 60, kf3 = 61, kf4 = 62, kf5 = 63, kf6 = 64, kf7 = 65, kf8 = 66, kf9 = 67, kf10 = 68, kf11 = 133, kf12 = 134
 
 
@@ -62,21 +62,28 @@ COLOR 7
 PRINT "---------"
 PRINT
 
+'init mouse
+ms.init
+ms.hide
+
 'file details
 COLOR 14
 INPUT "File name"; fsrc$
 fsrc$ = fl.full(fsrc$, ".tex")
 
+'help
+CLS
+tex.help
+k$ = INPUT$(1)
+
 'load screen
 CLS
-ms.init
-ms.hide
-ms.pos 12, 40
 tex.load fsrc$
+scr.get 0, 0, byte%, attv%
+ms.put byte%, attv%
 byte% = 32
-attv% = 1
-att.set attr, attv%
-
+attr.bg = 7
+attv% = att.get%(attr)
 
 'main loop
 DO
@@ -89,8 +96,8 @@ ms.draw byte%, attv%
 IF Mouse.lb = 1 THEN ms.put byte%, attv%
 IF Mouse.rb = 1 THEN ms.get byte%, attv%
 IF Mouse.lb = 1 AND Mouse.rb = 1 THEN
-byte% = 0
-attv% = 0
+byte% = 32
+attv% = 7
 END IF
 WEND
       
@@ -113,21 +120,27 @@ CASE CHR$(0) + CHR$(kright)
 ms.move 1, 0
 
 CASE CHR$(0) + CHR$(kins)
-attr.fg = (attr.fg + 1) MOD 16
+byte% = (byte% + 1) MOD 256
 
 CASE CHR$(0) + CHR$(kdel)
-attr.fg = (attr.fg + 15) MOD 16
+byte% = (byte% + 255) MOD 256
 
 CASE CHR$(0) + CHR$(khome)
-attr.bg = (attr.bg + 1) MOD 8
+attr.fg = (attr.fg + 1) MOD 16
 
 CASE CHR$(0) + CHR$(kend)
-attr.bg = (attr.bg + 7) MOD 8
+attr.fg = (attr.fg + 15) MOD 16
 
 CASE CHR$(0) + CHR$(kpgup)
-attr.bk = (attr.bk + 1) MOD 2
+attr.bg = (attr.bg + 1) MOD 8
 
 CASE CHR$(0) + CHR$(kpgdn)
+attr.bg = (attr.bg + 7) MOD 8
+
+CASE CHR$(0) + CHR$(kf3)
+attr.bk = (attr.bk + 1) MOD 2
+
+CASE CHR$(0) + CHR$(kf4)
 attr.bk = (attr.bk + 1) MOD 2
 
 CASE CHR$(0) + CHR$(kf1)
@@ -140,7 +153,7 @@ tex.load "text.tmp"
 KILL "text.tmp"
 
 CASE CHR$(0) + CHR$(kf5)
-tex.save "text.tmp"
+tex.save fsrc$
 
 CASE ELSE
 byte% = ASC(k$)
@@ -149,15 +162,17 @@ ms.move 1, 0
 
 END SELECT
 attv% = att.get(attr)
+ms.draw byte%, attv%
 
 LOOP
 
-CLS
-SYSTEM
-
-
 err.handler:
-RESUME NEXT
+CLS
+COLOR 12
+PRINT err$
+PRINT
+COLOR 7
+SYSTEM
 
 FUNCTION att.get% (attr AS ScreenAttr)
 
@@ -198,13 +213,19 @@ END FUNCTION
 SUB ms.draw (byte%, attr%)
 SHARED err$, MouseMod$, Mouse AS DosMouse, k$
 
-ms.get char0%, attr0%
-scr.put Mouse.x, Mouse.y, char0%, attr0%
+oldx% = Mouse.x
+oldY% = Mouse.y
 ms.statabs
+IF oldx% = Mouse.x AND oldY% = Mouse.y THEN GOTO ms.draw.draw
+ms.get char0%, attr0%
+scr.put oldx%, oldY%, char0%, attr0%
 scr.get Mouse.x, Mouse.y, char0%, attr0%
 ms.put char0%, attr0%
-scr.put Mouse.x, Mouse.y, byte%, attr%
 
+ms.draw.draw:
+scr.put Mouse.x, Mouse.y, byte%, attr% OR 16
+
+ms.draw.end:
 END SUB
 
 SUB ms.get (byte%, attr%)
@@ -289,14 +310,14 @@ END SUB
 SUB ms.pos (x%, y%)
 SHARED err$, MouseMod$, Mouse AS DosMouse
 
-x& = x& * 8
-y& = y& * 8
-
+x& = x% * 8
+y& = y% * 8
+ 
 DEF SEG = &H101
-POKE 0, x% MOD 256
-POKE 1, x% \ 256
-POKE 2, y% MOD 256
-POKE 3, y% \ 256
+POKE 0, x& MOD 256
+POKE 1, x& \ 256
+POKE 2, y& MOD 256
+POKE 3, y& \ 256
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 66
@@ -417,8 +438,9 @@ PRINT "MOUSE, ARROW KEYS = Move Cursor"
 PRINT "MOUSE-LEFT = Draw"
 PRINT "MOUSE-RIGHT = Copy"
 PRINT "MOUSE-(LEFT+RIGHT) = Erase Mode"
-PRINT "INSERT, DELETE = Change Character Color"
-PRINT "HOME, END = Change Background Color"
+PRINT "INSERT, DELETE = Change Character"
+PRINT "HOME, END = Change Character Color"
+PRINT "PAGE-UP, PAGE-DOWN = Change Background Color"
 PRINT "PAGE-UP, PAGE-DOWN = Change Character Blink"
 
 END SUB
@@ -428,15 +450,15 @@ SUB tex.load (fsrc$)
 'get data from file
 length& = 4000
 f% = FREEFILE
-OPEN "b", #f%, fsrc$
+OPEN "B", #f%, fsrc$
 IF LOF(f%) < length& THEN GOTO tex.load.end
 chars$ = INPUT$(length&, #1)
 CLOSE #f%
 
 'write data to screen
 DEF SEG = &HB800
-FOR i& = 0 TO length& - 1
-POKE i&, ASC(MID$(chars$, i&, 1))
+FOR i& = 1 TO length&
+POKE i& - 1, ASC(MID$(chars$, i&, 1))
 NEXT
 DEF SEG
 
@@ -444,6 +466,10 @@ tex.load.end:
 END SUB
 
 SUB tex.save (fdst$)
+
+'hide mouse
+ms.get byte%, attr%
+scr.put Mouse.x, Mouse.y, byte%, attr%
 
 'load data from screen
 length& = 4000
@@ -456,7 +482,7 @@ DEF SEG
 'save data to file
 f% = FREEFILE
 OPEN "B", #f%, fdst$
-PUT #1, , chars$
+PUT #1, 1, chars$
 CLOSE #f%
 
 END SUB
