@@ -1,7 +1,7 @@
 'dos mouse type
 TYPE DosMouse
-x AS LONG
-y AS LONG
+x AS INTEGER
+y AS INTEGER
 lb AS INTEGER
 rb AS INTEGER
 END TYPE
@@ -15,47 +15,35 @@ END TYPE
 
 
 'function declarations
+DECLARE SUB att.set (attr AS ScreenAttr, attv%)
+DECLARE FUNCTION att.get% (attr AS ScreenAttr)
+DECLARE FUNCTION fl.name$ (fsrc$)
+DECLARE FUNCTION fl.full$ (fsrc$, ext$)
+DECLARE FUNCTION lastIndexOf% (s$, f$)
+DECLARE SUB ms.init ()
+DECLARE SUB ms.load ()
+DECLARE SUB ms.show ()
+DECLARE SUB ms.hide ()
 DECLARE SUB ms.statabs ()
-DECLARE SUB ms.absinfo ()
+DECLARE SUB ms.statrel ()
+DECLARE SUB ms.pos (x%, y%)
+DECLARE SUB ms.move (dx%, dy%)
+DECLARE SUB ms.get (char%, attr%)
+DECLARE SUB ms.put (char%, attr%)
+DECLARE SUB ms.draw (char%, attr%)
+DECLARE SUB ms.range (x1%, y1%, x2%, y2%)
 DECLARE SUB scr.get (x%, y%, char%, attr%)
-DECLARE SUB ms.getat (char%, attr%)
 DECLARE SUB scr.put (x%, y%, char%, attr%)
 DECLARE FUNCTION scr.addr& (x%, y%)
-DECLARE SUB ms.move (dx%, dy%)
-DECLARE SUB ms.pos (x&, y&)
-DECLARE SUB ms.load ()
-DECLARE SUB ms.init ()
-DECLARE SUB ms.show ()
-DECLARE SUB ms.start2 ()
-DECLARE SUB ms.show2 ()
-DECLARE SUB ms.end2 ()
-DECLARE SUB ms.start3 ()
-DECLARE SUB ms.show3 ()
-DECLARE SUB ms.writeat2 (char%, attr%)
-DECLARE SUB ms.writeat3 (char%, attr%)
-DECLARE SUB ms.hide ()
-DECLARE SUB ms.range (x1%, y1%, x2%, y2%)
-DECLARE SUB ms.put (x&, y&)
-DECLARE SUB ms.getabs ()
-DECLARE SUB ms.getrel ()
-DECLARE SUB ms.start2 ()
-DECLARE FUNCTION dat.datum% (fl1$, pos1&)
-DECLARE SUB dat.loaddata (fl1$, pos1&, pos2&, segment&)
-DECLARE SUB dat.loadpic (fl1$)
-DECLARE SUB makecopy ()
-DECLARE SUB savedat (fl1$)
 DECLARE SUB tex.load (fsrc$)
-DECLARE FUNCTION fl.name$ (fsrc$)
-DECLARE FUNCTION fl.full$ (fsrc$)
-DECLARE FUNCTION lastIndexOf% (s$, f$)
-DECLARE SUB ms.get (char%, attr AS ScreenAttr)
 DECLARE SUB tex.save (fdst$)
+DECLARE SUB tex.help ()
 
 
 'handle errors
 ON ERROR GOTO err.handler
-DIM SHARED Err$, MouseMod$, Mouse AS DosMouse
-DIM char%, attr AS ScreenAttr
+DIM SHARED err$, MouseMod$, Mouse AS DosMouse
+DIM attr AS ScreenAttr
 
 
 'input keys
@@ -83,38 +71,34 @@ fsrc$ = fl.full(fsrc$, ".tex")
 CLS
 ms.init
 ms.hide
-ms.pos 0, 0
+ms.pos 12, 40
 tex.load fsrc$
-ms.show
-
-'prepare
-ms.start2
-Mouse.Mode = 1
-Mouse.attr = 1
-Mouse.virtattr = 0
+byte% = 32
+attv% = 1
+att.set attr, attv%
 
 
 'main loop
 DO
 
-'get key, handle mouse
+'handle mouse
 k$ = ""
 WHILE k$ = ""
 k$ = INKEY$
-IF Mouse.lb = 1 THEN ms.put char%, attr
-IF Mouse.rb = 1 THEN ms.get char%, attr
+ms.draw byte%, attv%
+IF Mouse.lb = 1 THEN ms.put byte%, attv%
+IF Mouse.rb = 1 THEN ms.get byte%, attv%
 IF Mouse.lb = 1 AND Mouse.rb = 1 THEN
-char% = 0
-attr.fg = 0
-attr.bg = 0
-attr.bk = 0
+byte% = 0
+attv% = 0
 END IF
 WEND
-       
+      
+att.set attr, attv%
 SELECT CASE k$
 
 CASE CHR$(27)
-SYSTEM
+EXIT DO
 
 CASE CHR$(0) + CHR$(kup)
 ms.move 0, -1
@@ -122,7 +106,7 @@ ms.move 0, -1
 CASE CHR$(0) + CHR$(kdown)
 ms.move 0, 1
 
-char CHR$(0) + CHR$(kleft)
+CASE CHR$(0) + CHR$(kleft)
 ms.move -1, 0
 
 CASE CHR$(0) + CHR$(kright)
@@ -147,116 +131,46 @@ CASE CHR$(0) + CHR$(kpgdn)
 attr.bk = (attr.bk + 1) MOD 2
 
 CASE CHR$(0) + CHR$(kf1)
-
-
-'Change main colour + (Ctrl+Z)
-CASE CHR$(26)
-a1% = Jerry.mouseattrib AND &HF
-a1% = a1% + 1
-IF a1% > 15 THEN a1% = 0
-Jerry.mouseattrib = (Jerry.mouseattrib AND &HF0) OR a1%
-'Change main colour - (Ctrl+X)
-CASE CHR$(24)
-a1% = Jerry.mouseattrib AND &HF
-a1% = a1% - 1
-IF (a1% < 0) THEN a1% = 15
-Jerry.mouseattrib = (Jerry.mouseattrib AND &HF0) OR a1%
-'Change blink colour + (Ctrl+C)
-CASE CHR$(3)
-a1% = Jerry.mouseattrib AND &H80
-a1% = a1% + 1
-IF (a1% > 128) THEN a1% = 0
-Jerry.mouseattrib = (Jerry.mouseattrib AND &H7F) OR a1%
-'Change back colour +  (Ctrl+V)
-CASE CHR$(22)
-a1% = (Jerry.mouseattrib AND &H70) \ 16
-a1% = a1% + 1
-IF (a1% > 7) THEN a1% = 0
-Jerry.mouseattrib = (Jerry.mouseattrib AND &H8F) OR (a1% * 16)
-'Change back colour -  (Ctrl+B)
-CASE CHR$(2)
-a1% = (Jerry.mouseattrib AND &H70) \ 16
-a1% = a1% - 1
-IF (a1% < 0) THEN a1% = 7
-Jerry.mouseattrib = (Jerry.mouseattrib AND &H8F) OR (a1% * 16)
-'Change char +  (Ctrl+Q)
-CASE CHR$(17)
-a1% = Jerry.MouseType
-a1% = a1% + 1
-IF a1% > 255 THEN a1% = 0
-Jerry.MouseType = a1%
-'Change char -  (Ctrl+W)
-CASE CHR$(23)
-a1% = Jerry.MouseType
-a1% = a1% - 1
-IF a1% < 0 THEN a1% = 255
-Jerry.MouseType = a1%
-'Copy char     (Ctrl+E)
-CASE CHR$(5)
-DEF SEG = &HB800
-Jerry.MouseType = PEEK(5000)
-DEF SEG
-'Copy attrib  (Ctrl+R)
-CASE CHR$(18)
-DEF SEG = &HB800
-Jerry.mouseattrib = PEEK(5001)
-DEF SEG
-'Copy char and attrib  (Ctrl+T)
-CASE CHR$(20)
-DEF SEG = &HB800
-Jerry.MouseType = PEEK(5000)
-Jerry.mouseattrib = PEEK(5001)
-DEF SEG
-'Display location  (Ctrl+Y)
-CASE CHR$(25)
-DEF SEG = &HB800
-FOR lv1& = 0 TO 159
-POKE 4000 + lv1&, PEEK(lv1&)
-NEXT
-DEF SEG
-LOCATE 1, 1
-PRINT "Location:"; Jerry.xpos, Jerry.ypos
+tex.save "text.tmp"
+CLS
+tex.help
 k$ = INPUT$(1)
-DEF SEG = &HB800
-FOR lv1& = 0 TO 159
-POKE lv1&, PEEK(4000 + lv1&)
-NEXT
-DEF SEG
-'Save slide in save.dat  (Ctrl+P)
-CASE CHR$(16)
-save% = save% + 1
-mouse.end2
-savedat "save.dat"
-makecopy
-DEF SEG = &HB800
-FOR lv1& = 0 TO 159
-POKE 4000 + lv1&, PEEK(lv1&)
-NEXT
-DEF SEG
-LOCATE 1, 1
-PRINT "New slide"; save%
-k$ = INPUT$(1)
-DEF SEG = &HB800
-FOR lv1& = 0 TO 159
-POKE lv1&, PEEK(4000 + lv1&)
-NEXT
-DEF SEG
-'Write char on press
+CLS
+tex.load "text.tmp"
+KILL "text.tmp"
+
+CASE CHR$(0) + CHR$(kf5)
+tex.save "text.tmp"
+
 CASE ELSE
-mouse.writeat2 ASC(k$), Jerry.mouseattrib
-Jerry.xpos = Jerry.xpos + 1
-IF (Jerry.xpos > 79) THEN Jerry.xpos = 79
-mouse.put Jerry.xpos, Jerry.ypos
+byte% = ASC(k$)
+ms.put byte%, attv%
+ms.move 1, 0
+
 END SELECT
+attv% = att.get(attr)
+
 LOOP
 
-mouse.end2
+CLS
+SYSTEM
 
-'save
-tex.save fsrc$
 
 err.handler:
 RESUME NEXT
+
+FUNCTION att.get% (attr AS ScreenAttr)
+
+att.get% = attr.bk * 128 + attr.bg * 16 + attr.fg
+END FUNCTION
+
+SUB att.set (attr AS ScreenAttr, attv%)
+
+attr.bk = (attv% \ 128) AND 1
+attr.bg = (attv% \ 16) AND 7
+attr.fg = attv% AND 15
+
+END SUB
 
 FUNCTION fl.full$ (fsrc$, ext$)
 
@@ -281,30 +195,30 @@ NEXT
 IF t$ = f$ THEN lastIndexOf% = i% ELSE lastIndexOf% = -1
 END FUNCTION
 
-SUB ms.draw (char%, attr%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse, k$
+SUB ms.draw (byte%, attr%)
+SHARED err$, MouseMod$, Mouse AS DosMouse, k$
 
 ms.get char0%, attr0%
 scr.put Mouse.x, Mouse.y, char0%, attr0%
 ms.statabs
 scr.get Mouse.x, Mouse.y, char0%, attr0%
 ms.put char0%, attr0%
-scr.put Mouse.x, Mouse.y, char%, attr%
+scr.put Mouse.x, Mouse.y, byte%, attr%
 
 END SUB
 
-SUB ms.get (char%, attr%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SUB ms.get (byte%, attr%)
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
-char% = PEEK(5000)
+byte% = PEEK(5000)
 attr% = PEEK(5001)
 DEF SEG
 
 END SUB
 
 SUB ms.hide
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 22
@@ -314,7 +228,7 @@ DEF SEG
 END SUB
 
 SUB ms.init
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 'call init routine
 IF LEN(MouseMod$) = 0 THEN ms.load
@@ -330,12 +244,12 @@ IF a1% = 0 THEN GOTO mouse.init.err
 EXIT SUB
 
 mouse.init.err:
-Err$ = "Mouse not installed"
+err$ = "Mouse not installed"
 ERROR 2
 END SUB
 
 SUB ms.load
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 'open mouse helper asm
 f% = FREEFILE
@@ -351,32 +265,38 @@ CLOSE #f%
 EXIT SUB
 
 mouse.load.err:
-Err$ = "Mouse module - mouse.dll - cannot be found"
+err$ = "Mouse module - mouse.dll - cannot be found"
 ERROR 1
 END SUB
 
 SUB ms.move (dx%, dy%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
+
+ms.get char0%, attr0%
+scr.put Mouse.x, Mouse.y, char0%, attr0%
 
 Mouse.x = Mouse.x + dx%
 Mouse.y = Mouse.y + dy% + (Mouse.x \ 80)
 Mouse.x = (Mouse.x + 80) MOD 80
 Mouse.y = (Mouse.y + 25) MOD 25
+
+scr.get Mouse.x, Mouse.y, char0%, attr0%
+ms.put char0%, attr0%
 ms.pos Mouse.x, Mouse.y
 
 END SUB
 
-SUB ms.pos (x&, y&)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SUB ms.pos (x%, y%)
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 x& = x& * 8
 y& = y& * 8
 
 DEF SEG = &H101
-POKE 0, x& MOD 256
-POKE 1, x& \ 256
-POKE 2, y& MOD 256
-POKE 3, y& \ 256
+POKE 0, x% MOD 256
+POKE 1, x% \ 256
+POKE 2, y% MOD 256
+POKE 3, y% \ 256
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 66
@@ -385,18 +305,18 @@ DEF SEG
 
 END SUB
 
-SUB ms.put (char%, attr%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SUB ms.put (byte%, attr%)
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
-POKE 5000, char%
+POKE 5000, byte%
 POKE 5001, attr%
 DEF SEG
 
 END SUB
 
 SUB ms.range (x1%, y1%, x2%, y2%)
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &H101
 POKE 1, 0   'x1% MOD 256
@@ -416,7 +336,7 @@ DEF SEG
 END SUB
 
 SUB ms.show
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 16
@@ -426,7 +346,7 @@ DEF SEG
 END SUB
 
 SUB ms.statabs
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 89
@@ -442,7 +362,7 @@ DEF SEG
 END SUB
 
 SUB ms.statrel
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SHARED err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 117
@@ -463,21 +383,21 @@ FUNCTION scr.addr& (x%, y%)
 scr.addr& = ((y% * 80 + x%) * 2)
 END FUNCTION
 
-SUB scr.get (x%, y%, char%, attr%)
+SUB scr.get (x%, y%, byte%, attr%)
 
 ptr& = scr.addr&(x%, y%)
 DEF SEG = &HB800
-char% = PEEK(ptr&)
+byte% = PEEK(ptr&)
 attr% = PEEK(ptr& + 1)
 DEF SEG
 
 END SUB
 
-SUB scr.put (x%, y%, char%, attr%)
+SUB scr.put (x%, y%, byte%, attr%)
 
 ptr& = scr.addr(x%, y%)
 DEF SEG = &HB800
-POKE ptr&, char%
+POKE ptr&, byte%
 POKE ptr& + 1, attr%
 DEF SEG
 
@@ -509,7 +429,7 @@ SUB tex.load (fsrc$)
 length& = 4000
 f% = FREEFILE
 OPEN "b", #f%, fsrc$
-IF LOF(f%) < length& THEN GOTO text.load.end
+IF LOF(f%) < length& THEN GOTO tex.load.end
 chars$ = INPUT$(length&, #1)
 CLOSE #f%
 
