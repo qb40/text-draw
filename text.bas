@@ -4,16 +4,15 @@ x AS LONG
 y AS LONG
 lb AS INTEGER
 rb AS INTEGER
-oldX AS LONG
-oldY AS LONG
-oldLb AS INTEGER
-oldRb AS INTEGER
-mode AS INTEGER
-attr AS INTEGER
-oldMype AS INTEGER
-oldAttr AS INTEGER
-virtattr AS INTEGER
 END TYPE
+
+'screen attr type
+TYPE ScreenAttr
+fg AS INTEGER
+bg AS INTEGER
+bk AS INTEGER
+END TYPE
+
 
 'function declarations
 DECLARE SUB ms.load ()
@@ -41,35 +40,60 @@ DECLARE SUB tex.load (fsrc$)
 DECLARE FUNCTION fl.name$ (fsrc$)
 DECLARE FUNCTION fl.full$ (fsrc$)
 DECLARE FUNCTION lastIndexOf% (s$, f$)
+DECLARE SUB ms.get (char%, attr AS ScreenAttr)
+DECLARE SUB tex.save (fdst$)
 
 
 'handle errors
 ON ERROR GOTO err.handler
-DIM SHARED Err$, MouseMod$, mouse AS DosMouse
+DIM SHARED Err$, MouseMod$, Mouse AS DosMouse
+DIM char%, attr AS ScreenAttr
 
 
 'start
-SCREEN 0
+CLS
+COLOR 15
+PRINT "Text Draw"
+COLOR 7
+PRINT "---------"
+PRINT
+
+'file details
+COLOR 14
+INPUT "File name"; fsrc$
+fsrc$ = fl.full(fsrc$, ".tex")
+
+'load screen
+CLS
 ms.init
 ms.hide
 ms.put 0, 0
-tex.load "aaaa.dat"
+tex.load fsrc$
+ms.show
 
+'prepare
 ms.start2
-mouse.mode = 1
-mouse.attr = 1
-mouse.virtattr = 0
+Mouse.Mode = 1
+Mouse.attr = 1
+Mouse.virtattr = 0
+
+
+'main loop
 DO
-        k$ = ""
-        WHILE k$ = ""
-        mouse.show2
-        k$ = INKEY$
-        IF (k$ = CHR$(27)) THEN EXIT DO
-        attr% = attr2% * 128 + attr3% * 16 + attr1%
-        IF (Jerry.left = 1) THEN mouse.writeat2 Jerry.MouseType, Jerry.mouseattrib
-        IF (Jerry.right = 1) THEN mouse.writeat2 0, 0
-        IF (Jerry.left = 1 AND Jerry.right = 1) THEN CLS
-        WEND
+
+'get key, handle mouse
+k$ = ""
+WHILE k$ = ""
+k$ = INKEY$
+IF Mouse.lb = 1 THEN ms.put char%, attr
+IF Mouse.rb = 1 THEN ms.get char%, attr
+IF Mouse.lb = 1 AND Mouse.rb = 1 THEN
+char% = 0
+attr.fg = 0
+attr.bg = 0
+attr.bk = 0
+END IF
+WEND
        
 SELECT CASE k$
 'Change main colour + (Ctrl+Z)
@@ -175,20 +199,8 @@ LOOP
 
 mouse.end2
 
-'Save
-IF (save% = 0 AND saveused% = 0) THEN
-OPEN "O", #1, "aaaa.dat"
-CLOSE #1
-DEF SEG = &HB800
-OPEN "B", #1, "aaaa.dat"
-FOR i& = 0 TO 3999
-k$ = CHR$(PEEK(i&))
-PUT #1, i& + 1, k$
-NEXT
-CLOSE #1
-DEF SEG
-END IF
-
+'save
+tex.save fsrc$
 
 err.handler:
 RESUME NEXT
@@ -289,9 +301,9 @@ DEF SEG
 END SUB
 
 SUB ms.end2
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-ptr& = (mouse.y * 80 + mouse.x) * 2
+ptr& = (Mouse.y * 80 + Mouse.x) * 2
 DEF SEG = &HB800
 POKE ptr&, PEEK(5000)
 POKE ptr& + 1, PEEK(5001)
@@ -299,24 +311,39 @@ DEF SEG
 
 END SUB
 
+SUB ms.get (char%, attr AS ScreenAttr)
+SHARED Err$, MouseMod$, Mouse AS DosMouse
+
+ptr& = (Mouse.y * 80 + Mouse.x) * 2
+DEF SEG = &HB800
+char% = PEEK(ptr&)
+attrv% = PEEK(ptr& + 1)
+DEF SEG
+
+attr.fg = attrv% AND 15
+attr.bg = (attrv% \ 16) AND 7
+attr.bk = (attrv% \ 128) AND 1
+
+END SUB
+
 SUB ms.getabs
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 89
 CALL absolute(func&)
 
 DEF SEG = &H100
-mouse.lb = PEEK(0) AND 1
-mouse.rb = (PEEK(0) \ 2) AND 1
-mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
-mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = (PEEK(3) * 256 + PEEK(2)) \ 8
+Mouse.y = (PEEK(5) * 256 + PEEK(4)) \ 8
 DEF SEG
 
 END SUB
 
 SUB ms.getrel
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 117
@@ -324,16 +351,16 @@ CALL absolute(func&)
 
 DEF SEG = &H100
 a1% = PEEK(0)
-mouse.lb = PEEK(0) AND 1
-mouse.rb = (PEEK(0) \ 2) AND 1
-mouse.x = CVI(CHR$(PEEK(2)) + CHR$(PEEK(3))) \ 2
-mouse.y = CVI(CHR$(PEEK(4)) + CHR$(PEEK(5)))
+Mouse.lb = PEEK(0) AND 1
+Mouse.rb = (PEEK(0) \ 2) AND 1
+Mouse.x = CVI(CHR$(PEEK(2)) + CHR$(PEEK(3))) \ 2
+Mouse.y = CVI(CHR$(PEEK(4)) + CHR$(PEEK(5)))
 DEF SEG
 
 END SUB
 
 SUB ms.hide
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 22
@@ -343,7 +370,7 @@ DEF SEG
 END SUB
 
 SUB ms.init
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 'call init routine
 IF LEN(MouseMod$) = 0 THEN ms.load
@@ -364,7 +391,7 @@ ERROR 2
 END SUB
 
 SUB ms.load
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 'open mouse helper asm
 f% = FREEFILE
@@ -384,8 +411,8 @@ Err$ = "Mouse module - mouse.dll - cannot be found"
 ERROR 1
 END SUB
 
-SUB ms.put (x&, y&)
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SUB ms.pos (x&, y&)
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 x& = x& * 8
 y& = y& * 8
@@ -403,8 +430,22 @@ DEF SEG
 
 END SUB
 
+SUB ms.put (char%, attr AS ScreenAttr)
+SHARED Err$, MouseMod$, Mouse AS DosMouse
+
+ms.hide
+ptr& = (Mouse.y * 80 + Mouse.x) * 2
+attrv% = attr.bk * 128 + attr.bg * 16 + attr.fg
+DEF SEG = &HB800
+POKE ptr&, char%
+POKE ptr& + 1, attrv%
+DEF SEG
+ms.show
+
+END SUB
+
 SUB ms.range (x1%, y1%, x2%, y2%)
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &H101
 POKE 1, 0   'x1% MOD 256
@@ -424,7 +465,7 @@ DEF SEG
 END SUB
 
 SUB ms.show
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 16
@@ -434,7 +475,7 @@ DEF SEG
 END SUB
 
 SUB ms.show2
-SHARED Err$, MouseMod$, mouse AS DosMouse, k$
+SHARED Err$, MouseMod$, Mouse AS DosMouse, k$
 
 ms.getabs
 IF (Jerry.virtualattrib > 0) THEN
@@ -476,7 +517,7 @@ END IF
 END SUB
 
 SUB ms.show3
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 mouse.status
 IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos) THEN
@@ -497,7 +538,7 @@ END IF
 END SUB
 
 SUB ms.start2
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 mem1& = (Jerry.xpos + Jerry.ypos * 80) * 2
 DEF SEG = &HB800
@@ -508,7 +549,7 @@ DEF SEG
 END SUB
 
 SUB ms.start3
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
 mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
@@ -519,7 +560,7 @@ DEF SEG
 END SUB
 
 SUB ms.writeat2 (char%, attr%)
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 DEF SEG = &HB800
 POKE 5000, char%
@@ -529,7 +570,7 @@ DEF SEG
 END SUB
 
 SUB ms.writeat3 (char%, attr%)
-SHARED Err$, MouseMod$, mouse AS DosMouse
+SHARED Err$, MouseMod$, Mouse AS DosMouse
 
 Jerry.MouseType = char%
 Jerry.mouseattrib = NOT (attr%)
@@ -576,6 +617,7 @@ SUB tex.load (fsrc$)
 length& = 4000
 f% = FREEFILE
 OPEN "b", #f%, fsrc$
+IF LOF(f%) < length& THEN GOTO text.load.end
 chars$ = INPUT$(length&, #1)
 CLOSE #f%
 
@@ -586,6 +628,7 @@ POKE i&, ASC(MID$(chars$, i&, 1))
 NEXT
 DEF SEG
 
+tex.load.end:
 END SUB
 
 SUB tex.save (fdst$)
