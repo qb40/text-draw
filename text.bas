@@ -1,3 +1,5 @@
+DECLARE SUB ms.move (dx%, dy%)
+DECLARE SUB ms.pos (x&, y&)
 'dos mouse type
 TYPE DosMouse
 x AS LONG
@@ -50,6 +52,14 @@ DIM SHARED Err$, MouseMod$, Mouse AS DosMouse
 DIM char%, attr AS ScreenAttr
 
 
+'input keys
+CONST kbkspc = 8, kenter = 13, ktab = 9, kesc = 27
+CONST kleft = 75, kright = 77, kup = 72, kdown = 80
+CONST kuplt = 71, kuprt = 73, kdnlt = 79, kdnrt = 81
+CONST kins = 82, khome = 73, kpgup = 71, kdel = 83, kend = 81, kpgdn = 79
+CONST kf1 = 59, kf2 = 60, kf3 = 61, kf4 = 62, kf5 = 63, kf6 = 64, kf7 = 65, kf8 = 66, kf9 = 67, kf10 = 68, kf11 = 133, kf12 = 134
+
+
 'start
 CLS
 COLOR 15
@@ -67,7 +77,7 @@ fsrc$ = fl.full(fsrc$, ".tex")
 CLS
 ms.init
 ms.hide
-ms.put 0, 0
+ms.pos 0, 0
 tex.load fsrc$
 ms.show
 
@@ -96,6 +106,43 @@ END IF
 WEND
        
 SELECT CASE k$
+
+CASE CHR$(27)
+SYSTEM
+
+CASE CHR$(0) + CHR$(kup)
+ms.move 0, -1
+
+CASE CHR$(0) + CHR$(kdown)
+ms.move 0, 1
+
+char CHR$(0) + CHR$(kleft)
+ms.move -1, 0
+
+CASE CHR$(0) + CHR$(kright)
+ms.move 1, 0
+
+CASE CHR$(0) + CHR$(kins)
+attr.fg = (attr.fg + 1) MOD 16
+
+CASE CHR$(0) + CHR$(kdel)
+attr.fg = (attr.fg + 15) MOD 16
+
+CASE CHR$(0) + CHR$(khome)
+attr.bg = (attr.bg + 1) MOD 8
+
+CASE CHR$(0) + CHR$(kend)
+attr.bg = (attr.bg + 7) MOD 8
+
+CASE CHR$(0) + CHR$(kpgup)
+attr.bk = (attr.bk + 1) MOD 2
+
+CASE CHR$(0) + CHR$(kpgdn)
+attr.bk = (attr.bk + 1) MOD 2
+
+CASE CHR$(0) + CHR$(kf1)
+
+
 'Change main colour + (Ctrl+Z)
 CASE CHR$(26)
 a1% = Jerry.mouseattrib AND &HF
@@ -300,29 +347,57 @@ LOOP UNTIL mem1& > 4000
 DEF SEG
 END SUB
 
-SUB ms.end2
-SHARED Err$, MouseMod$, Mouse AS DosMouse
+SUB ms.draw (char%, attr%)
+SHARED Err$, MouseMod$, Mouse AS DosMouse, k$
 
-ptr& = (Mouse.y * 80 + Mouse.x) * 2
+ms.get char0%, attr0%
+
+ms.getabs
+IF (Jerry.virtualattrib > 0) THEN
+IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
+at% = Jerry.virtualattrib
+wr% = at% AND &HF
+IF (Jerry.left = 1) THEN wr% = (wr% * 2) AND &HF
+wr1% = at% AND &HF0
+IF (Jerry.right = 1) THEN wr1% = (wr1% * 2) AND &HF0
+wr% = wr1% + wr%
+IF (Jerry.oldxpos = Jerry.xpos AND Jerry.oldypos = Jerry.ypos) THEN
 DEF SEG = &HB800
-POKE ptr&, PEEK(5000)
-POKE ptr& + 1, PEEK(5001)
+mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2 + 1
+POKE mem1&, wr%
 DEF SEG
+END IF
+Jerry.oldleft = Jerry.left
+Jerry.oldright = Jerry.right
+Jerry.mouseattrib = wr%
+END IF
+END IF
+IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos OR Jerry.oldmouseattrib <> Jerry.mouseattrib OR Jerry.oldmousetype <> Jerry.MouseType) THEN
+DEF SEG = &HB800
+mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
+POKE mem1&, PEEK(5000)
+POKE mem1& + 1, PEEK(5001)
+mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
+POKE 5000, PEEK(mem1&)
+POKE 5001, PEEK(mem1& + 1)
+POKE mem1&, Jerry.MouseType
+POKE mem1& + 1, Jerry.mouseattrib
+Jerry.oldypos = Jerry.ypos
+Jerry.oldxpos = Jerry.xpos
+Jerry.oldmouseattrib = Jerry.mouseattrib
+Jerry.oldmousetype = Jerry.MouseType
+DEF SEG
+END IF
 
 END SUB
 
-SUB ms.get (char%, attr AS ScreenAttr)
+SUB ms.get (char%, attr%)
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-ptr& = (Mouse.y * 80 + Mouse.x) * 2
 DEF SEG = &HB800
-char% = PEEK(ptr&)
-attrv% = PEEK(ptr& + 1)
+char% = PEEK(5000)
+attr% = PEEK(5001)
 DEF SEG
-
-attr.fg = attrv% AND 15
-attr.bg = (attrv% \ 16) AND 7
-attr.bk = (attrv% \ 128) AND 1
 
 END SUB
 
@@ -411,6 +486,20 @@ Err$ = "Mouse module - mouse.dll - cannot be found"
 ERROR 1
 END SUB
 
+SUB ms.move (dx%, dy%)
+SHARED Err$, MouseMod$, Mouse AS DosMouse
+
+Mouse.x = Mouse.x + dx%
+Mouse.y = Mouse.y + dy% + (Mouse.x \ 80)
+Mouse.x = (Mouse.x + 80) MOD 80
+Mouse.y = (Mouse.y + 25) MOD 25
+
+ms.hide
+ms.pos Mouse.x, Mouse.y
+ms.show
+
+END SUB
+
 SUB ms.pos (x&, y&)
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
@@ -430,17 +519,13 @@ DEF SEG
 
 END SUB
 
-SUB ms.put (char%, attr AS ScreenAttr)
+SUB ms.put (char%, attr%)
 SHARED Err$, MouseMod$, Mouse AS DosMouse
 
-ms.hide
-ptr& = (Mouse.y * 80 + Mouse.x) * 2
-attrv% = attr.bk * 128 + attr.bg * 16 + attr.fg
 DEF SEG = &HB800
-POKE ptr&, char%
-POKE ptr& + 1, attrv%
+POKE 5000, char%
+POKE 5001, attr%
 DEF SEG
-ms.show
 
 END SUB
 
@@ -471,48 +556,6 @@ DEF SEG = VARSEG(MouseMod$)
 func& = SADD(MouseMod$) + 16
 CALL absolute(func&)
 DEF SEG
-
-END SUB
-
-SUB ms.show2
-SHARED Err$, MouseMod$, Mouse AS DosMouse, k$
-
-ms.getabs
-IF (Jerry.virtualattrib > 0) THEN
-IF (Jerry.oldleft <> Jerry.left OR Jerry.oldright <> Jerry.right) THEN
-at% = Jerry.virtualattrib
-wr% = at% AND &HF
-IF (Jerry.left = 1) THEN wr% = (wr% * 2) AND &HF
-wr1% = at% AND &HF0
-IF (Jerry.right = 1) THEN wr1% = (wr1% * 2) AND &HF0
-wr% = wr1% + wr%
-IF (Jerry.oldxpos = Jerry.xpos AND Jerry.oldypos = Jerry.ypos) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2 + 1
-POKE mem1&, wr%
-DEF SEG
-END IF
-Jerry.oldleft = Jerry.left
-Jerry.oldright = Jerry.right
-Jerry.mouseattrib = wr%
-END IF
-END IF
-IF (Jerry.oldxpos <> Jerry.xpos OR Jerry.oldypos <> Jerry.ypos OR Jerry.oldmouseattrib <> Jerry.mouseattrib OR Jerry.oldmousetype <> Jerry.MouseType) THEN
-DEF SEG = &HB800
-mem1& = (Jerry.oldypos * 80 + Jerry.oldxpos) * 2
-POKE mem1&, PEEK(5000)
-POKE mem1& + 1, PEEK(5001)
-mem1& = (Jerry.ypos * 80 + Jerry.xpos) * 2
-POKE 5000, PEEK(mem1&)
-POKE 5001, PEEK(mem1& + 1)
-POKE mem1&, Jerry.MouseType
-POKE mem1& + 1, Jerry.mouseattrib
-Jerry.oldypos = Jerry.ypos
-Jerry.oldxpos = Jerry.xpos
-Jerry.oldmouseattrib = Jerry.mouseattrib
-Jerry.oldmousetype = Jerry.MouseType
-DEF SEG
-END IF
 
 END SUB
 
@@ -609,6 +652,26 @@ mem1& = mem1& + 2
 LOOP UNTIL mem1& > 4000
 DEF SEG
 CLOSE #fr%
+END SUB
+
+SUB tex.help
+
+COLOR 15
+PRINT "Help"
+COLOR 7
+PRINT "----"
+PRINT
+COLOR 14
+PRINT "F1 - Help"
+PRINT "F5 - Save"
+PRINT "MOUSE, ARROW KEYS = Move Cursor"
+PRINT "MOUSE-LEFT = Draw"
+PRINT "MOUSE-RIGHT = Copy"
+PRINT "MOUSE-(LEFT+RIGHT) = Erase Mode"
+PRINT "INSERT, DELETE = Change Character Color"
+PRINT "HOME, END = Change Background Color"
+PRINT "PAGE-UP, PAGE-DOWN = Change Character Blink"
+
 END SUB
 
 SUB tex.load (fsrc$)
